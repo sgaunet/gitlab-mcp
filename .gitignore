@@ -1,5 +1,7 @@
 /gitlab-mcp
+/gitlab-mcp-coverage
 /.task
 /dist
 *vault*
 /.devbox
+/.coverdata

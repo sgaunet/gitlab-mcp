@@ -15,6 +15,13 @@ tasks:
       - go mod download
       - CGO_ENABLED=0 go build -o {{.BINFILE}} .
 
+  build:coverage:
+    desc: "Build the binary with coverage support"
+    cmds:
+      - go mod download
+      - mkdir -p .coverdata
+      - go build -cover -o {{.BINFILE}}-coverage .
+
   linter:
     desc: "Run linter"
     cmds:
@@ -35,5 +42,39 @@ tasks:
     desc: "Create a release"
     cmds:
       - GITLAB_TOKEN="" goreleaser --clean --skip validate
+
+  test:integration:
+    desc: "Run integration tests"
+    deps: [build]
+    cmds:
+      - go test ./cmd/tests -v
+
+  test:integration:coverage:
+    desc: "Run integration tests with coverage"
+    deps: [build:coverage]
+    env:
+      GOCOVERDIR: "{{.PWD}}/.coverdata"
+      USE_COVERAGE_BINARY: 1
+    cmds:
+      - go test ./cmd/tests -v
+
+  coverage:calculate:
+    desc: "Calculate coverage percentage from collected data"
+    cmds:
+      - echo "Coverage results:"
+      - go tool covdata percent -i=.coverdata
+
+  coverage:clean:
+    desc: "Clean coverage data directory"
+    cmds:
+      - rm -rf .coverdata
+
+  coverage:full:
+    desc: "Complete coverage workflow: build, test, and calculate coverage"
+    cmds:
+      - task: coverage:clean
+      - task: test:integration:coverage
+      - task: coverage:calculate
+      - task: coverage:clean
 
     
