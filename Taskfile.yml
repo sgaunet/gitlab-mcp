@@ -1,0 +1,39 @@
+# https://taskfile.dev
+version: '3'
+vars:
+  BINFILE: gitlab-mcp
+
+tasks:
+  default:
+    desc: "List all tasks"
+    cmds:
+      - task -a
+
+  build:
+    desc: "Build the binary"
+    cmds:
+      - go mod download
+      - CGO_ENABLED=0 go build -o {{.BINFILE}} .
+
+  linter:
+    desc: "Run linter"
+    cmds:
+      - go generate ./...
+      - golangci-lint run
+
+  image:
+    desc: "Build/push the docker image version latest"
+    cmds:
+      - docker build . -t ghcr.io/sgaunet/{{.BINFILE}}:latest --push
+
+  snapshot:
+    desc: "Create a snapshot release"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --snapshot
+
+  release:
+    desc: "Create a release"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --skip validate
+
+    

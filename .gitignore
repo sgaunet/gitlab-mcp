@@ -1,0 +1,5 @@
+/gitlab-mcp
+/.task
+/dist
+*vault*
+/.devbox
