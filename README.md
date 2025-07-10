@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 ## Features
 
 - **Get Project ID**: Extract GitLab project ID from remote repository URLs
+- **List Issues**: List issues for a given GitLab project ID with filtering options
 - Support for both SSH and HTTPS GitLab URLs
 - Compatible with Claude Code's MCP architecture
 
@@ -59,6 +60,41 @@ Give me the GitLab project ID for git@gitlab.com:example/example-project.git
 **Supported URL formats:**
 - SSH: `git@gitlab.com:user/repo.git`
 - HTTPS: `https://gitlab.com/user/repo.git`
+
+### list_issues
+
+Lists issues for a given GitLab project ID with optional filtering.
+
+**Parameters:**
+- `project_id` (number, required): GitLab project ID
+- `state` (string, optional): Filter by issue state (`opened`, `closed`, `all`) - defaults to `opened`
+- `labels` (string, optional): Comma-separated list of labels to filter by
+- `limit` (number, optional): Maximum number of issues to return (default: 100, max: 100)
+
+**Examples:**
+```
+List all open issues for GitLab project ID 12345
+```
+
+```
+List all issues (open and closed) for GitLab project ID 12345
+```
+
+```
+List issues with state=all and limit=50 for GitLab project ID 12345
+```
+
+**Response Format:**
+Returns a JSON array of issue objects, each containing:
+- `id`: Issue ID
+- `iid`: Internal issue ID
+- `title`: Issue title
+- `description`: Issue description
+- `state`: Issue state (`opened` or `closed`)
+- `labels`: Array of label names
+- `assignees`: Array of assignee objects
+- `created_at`: Creation timestamp
+- `updated_at`: Last update timestamp
 
 ## Development
 
