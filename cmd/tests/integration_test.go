@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"testing"
@@ -85,7 +86,7 @@ func TestMCPServerIntegration(t *testing.T) {
 			toolsResponse, err := client.ListTools(ctx, nil)
 			require.NoError(t, err, "Failed to list tools")
 
-			assert.Len(t, toolsResponse.Tools, 1, "Expected exactly one tool")
+			assert.Len(t, toolsResponse.Tools, 2, "Expected exactly two tools")
 
 			tool := toolsResponse.Tools[0]
 			assert.Equal(t, "get_project_id", tool.Name, "Tool name mismatch")
@@ -136,7 +137,64 @@ func TestMCPServerIntegration(t *testing.T) {
 			assert.Equal(t, "71379509", content.TextContent.Text, "Expected project ID 71379509")
 		})
 
-		// Test 4: Error handling - invalid tool name
+		// Test 4: Call the list_issues tool
+		t.Run("CallListIssuesTool", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			// Test with the project ID from the previous test
+			args := map[string]interface{}{
+				"project_id": 71379509,
+			}
+
+			toolResult, err := client.CallTool(ctx, "list_issues", args)
+			require.NoError(t, err, "Failed to call list_issues tool")
+
+			assert.NotNil(t, toolResult.Content, "Tool result should have content")
+			assert.Len(t, toolResult.Content, 1, "Expected exactly one content item")
+
+			content := toolResult.Content[0]
+			assert.Equal(t, "text", string(content.Type), "Content type should be text")
+			assert.NotNil(t, content.TextContent, "TextContent should be present")
+			
+			// Parse the JSON response to verify it's valid
+			var issues []interface{}
+			err = json.Unmarshal([]byte(content.TextContent.Text), &issues)
+			require.NoError(t, err, "Response should be valid JSON")
+			
+			t.Logf("Retrieved %d issues", len(issues))
+		})
+
+		// Test 5: Call list_issues with state filter
+		t.Run("CallListIssuesWithStateFilter", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			// Test with state filter
+			args := map[string]interface{}{
+				"project_id": 71379509,
+				"state":      "all",
+			}
+
+			toolResult, err := client.CallTool(ctx, "list_issues", args)
+			require.NoError(t, err, "Failed to call list_issues tool with state filter")
+
+			assert.NotNil(t, toolResult.Content, "Tool result should have content")
+			assert.Len(t, toolResult.Content, 1, "Expected exactly one content item")
+
+			content := toolResult.Content[0]
+			assert.Equal(t, "text", string(content.Type), "Content type should be text")
+			assert.NotNil(t, content.TextContent, "TextContent should be present")
+			
+			// Parse the JSON response to verify it's valid
+			var issues []interface{}
+			err = json.Unmarshal([]byte(content.TextContent.Text), &issues)
+			require.NoError(t, err, "Response should be valid JSON")
+			
+			t.Logf("Retrieved %d issues with state=all", len(issues))
+		})
+
+		// Test 6: Error handling - invalid tool name
 		t.Run("CallInvalidTool", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()

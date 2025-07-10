@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -67,6 +68,75 @@ func main() {
 
 		debugLogger.Info("Successfully retrieved project ID", "id", projectID, "remote_url", remoteURL)
 		return mcp.NewToolResultText(fmt.Sprintf("%d", projectID)), nil
+	})
+
+	// Create list_issues tool
+	listIssuesTool := mcp.NewTool("list_issues",
+		mcp.WithDescription("List issues for a GitLab project by project ID"),
+		mcp.WithNumber("project_id",
+			mcp.Required(),
+			mcp.Description("GitLab project ID"),
+		),
+		mcp.WithString("state",
+			mcp.Description("Filter by issue state: opened, closed, or all (default: opened)"),
+		),
+		mcp.WithString("labels",
+			mcp.Description("Comma-separated list of labels to filter by"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of issues to return (default: 100, max: 100)"),
+		),
+	)
+
+	// Add list_issues tool handler
+	s.AddTool(listIssuesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received list_issues tool request", "args", args)
+
+		// Extract project_id
+		projectIDFloat, ok := args["project_id"].(float64)
+		if !ok {
+			debugLogger.Error("project_id is not a number", "value", args["project_id"])
+			return mcp.NewToolResultError("project_id must be a number"), nil
+		}
+		projectID := int(projectIDFloat)
+
+		// Extract optional parameters
+		opts := &app.ListIssuesOptions{
+			State: "opened", // default
+			Limit: 100,      // default
+		}
+
+		if state, ok := args["state"].(string); ok && state != "" {
+			opts.State = state
+		}
+
+		if labels, ok := args["labels"].(string); ok && labels != "" {
+			opts.Labels = labels
+		}
+
+		if limitFloat, ok := args["limit"].(float64); ok {
+			opts.Limit = int(limitFloat)
+		}
+
+		debugLogger.Debug("Processing list_issues request", "project_id", projectID, "opts", opts)
+
+		// Call the app method
+		issues, err := appInstance.ListProjectIssues(projectID, opts)
+		if err != nil {
+			debugLogger.Error("Failed to list project issues", "error", err, "project_id", projectID)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to list project issues: %v", err)), nil
+		}
+
+		// Convert issues to JSON
+		jsonData, err := json.Marshal(issues)
+		if err != nil {
+			debugLogger.Error("Failed to marshal issues to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format issues response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved project issues", "count", len(issues), "project_id", projectID)
+		return mcp.NewToolResultText(string(jsonData)), nil
 	})
 
 	// Start the stdio server

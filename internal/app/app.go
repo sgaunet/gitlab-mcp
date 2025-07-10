@@ -131,3 +131,94 @@ func (a *App) extractProjectName(remoteURL string) (string, error) {
 	
 	return parts[len(parts)-1], nil
 }
+
+// ListIssuesOptions contains options for listing project issues
+type ListIssuesOptions struct {
+	State  string
+	Labels string
+	Limit  int
+}
+
+// Issue represents a GitLab issue
+type Issue struct {
+	ID          int                    `json:"id"`
+	IID         int                    `json:"iid"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	State       string                 `json:"state"`
+	Labels      []string               `json:"labels"`
+	Assignees   []map[string]interface{} `json:"assignees"`
+	CreatedAt   string                 `json:"created_at"`
+	UpdatedAt   string                 `json:"updated_at"`
+}
+
+// ListProjectIssues retrieves issues for a given project ID
+func (a *App) ListProjectIssues(projectID int, opts *ListIssuesOptions) ([]Issue, error) {
+	a.logger.Debug("Listing issues for project", "project_id", projectID, "options", opts)
+
+	// Set default options if not provided
+	if opts == nil {
+		opts = &ListIssuesOptions{
+			State: "opened",
+			Limit: 100,
+		}
+	}
+
+	// Set defaults for individual options
+	if opts.State == "" {
+		opts.State = "opened"
+	}
+	if opts.Limit == 0 {
+		opts.Limit = 100
+	}
+	if opts.Limit > 100 {
+		opts.Limit = 100 // Cap at 100 issues
+	}
+
+	// Create GitLab API options
+	listOpts := &gitlab.ListProjectIssuesOptions{
+		State:       &opts.State,
+		ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+	}
+
+	// TODO: Add labels filter support once we understand the correct type
+	// For now, labels filtering is not implemented
+
+	// Call GitLab API
+	issues, _, err := a.client.Issues.ListProjectIssues(projectID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to list project issues", "error", err, "project_id", projectID)
+		return nil, fmt.Errorf("failed to list project issues: %w", err)
+	}
+
+	a.logger.Debug("Retrieved issues", "count", len(issues), "project_id", projectID)
+
+	// Convert GitLab issues to our Issue struct
+	result := make([]Issue, 0, len(issues))
+	for _, issue := range issues {
+		// Convert assignees to the expected format
+		assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
+		for _, assignee := range issue.Assignees {
+			assignees = append(assignees, map[string]interface{}{
+				"id":       assignee.ID,
+				"username": assignee.Username,
+				"name":     assignee.Name,
+			})
+		}
+
+		result = append(result, Issue{
+			ID:          issue.ID,
+			IID:         issue.IID,
+			Title:       issue.Title,
+			Description: issue.Description,
+			State:       issue.State,
+			Labels:      issue.Labels,
+			Assignees:   assignees,
+			CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	a.logger.Info("Successfully retrieved project issues", "count", len(result), "project_id", projectID)
+	return result, nil
+}
