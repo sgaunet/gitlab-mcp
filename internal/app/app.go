@@ -139,6 +139,14 @@ type ListIssuesOptions struct {
 	Limit  int
 }
 
+// CreateIssueOptions contains options for creating a project issue
+type CreateIssueOptions struct {
+	Title       string
+	Description string
+	Labels      []string
+	Assignees   []int
+}
+
 // Issue represents a GitLab issue
 type Issue struct {
 	ID          int                    `json:"id"`
@@ -220,5 +228,69 @@ func (a *App) ListProjectIssues(projectID int, opts *ListIssuesOptions) ([]Issue
 	}
 
 	a.logger.Info("Successfully retrieved project issues", "count", len(result), "project_id", projectID)
+	return result, nil
+}
+
+// CreateProjectIssue creates a new issue for a given project ID
+func (a *App) CreateProjectIssue(projectID int, opts *CreateIssueOptions) (*Issue, error) {
+	a.logger.Debug("Creating issue for project", "project_id", projectID, "title", opts.Title)
+
+	// Validate required options
+	if opts == nil {
+		return nil, fmt.Errorf("create issue options are required")
+	}
+	if opts.Title == "" {
+		return nil, fmt.Errorf("issue title is required")
+	}
+
+	// Create GitLab API options
+	createOpts := &gitlab.CreateIssueOptions{
+		Title:       &opts.Title,
+		Description: &opts.Description,
+	}
+
+	// Add labels if provided
+	if len(opts.Labels) > 0 {
+		labels := gitlab.LabelOptions(opts.Labels)
+		createOpts.Labels = &labels
+	}
+
+	// Add assignees if provided
+	if len(opts.Assignees) > 0 {
+		createOpts.AssigneeIDs = &opts.Assignees
+	}
+
+	// Call GitLab API
+	issue, _, err := a.client.Issues.CreateIssue(projectID, createOpts)
+	if err != nil {
+		a.logger.Error("Failed to create issue", "error", err, "project_id", projectID, "title", opts.Title)
+		return nil, fmt.Errorf("failed to create issue: %w", err)
+	}
+
+	a.logger.Debug("Created issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
+
+	// Convert assignees to the expected format
+	assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
+	for _, assignee := range issue.Assignees {
+		assignees = append(assignees, map[string]interface{}{
+			"id":       assignee.ID,
+			"username": assignee.Username,
+			"name":     assignee.Name,
+		})
+	}
+
+	result := &Issue{
+		ID:          issue.ID,
+		IID:         issue.IID,
+		Title:       issue.Title,
+		Description: issue.Description,
+		State:       issue.State,
+		Labels:      issue.Labels,
+		Assignees:   assignees,
+		CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+
+	a.logger.Info("Successfully created issue", "id", result.ID, "iid", result.IID, "project_id", projectID, "title", result.Title)
 	return result, nil
 }
