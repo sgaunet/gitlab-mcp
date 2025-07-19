@@ -142,10 +142,10 @@ EOF
     cat > "$full_input" << 'EOF'
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"tools":true},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
 {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_project_id","arguments":{"remote_url":"git@gitlab.com:sgaunet/poc-table.git"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_project_id","arguments":{"remote_url":"git@gitlab.com:namespace/project_name.git"}}}
 EOF
     
-    echo -e "${YELLOW}Note: Testing with real GitLab repository git@gitlab.com:sgaunet/poc-table.git${NC}"
+    echo -e "${YELLOW}Note: Testing with GitLab repository git@gitlab.com:namespace/project_name.git${NC}"
     
     if test_jsonrpc_exchange "$full_input" "Full MCP sequence"; then
         echo -e "${GREEN}Full sequence test passed!${NC}"

@@ -13,7 +13,7 @@ import (
 type App struct {
 	GitLabToken string
 	GitLabURI   string
-	client      *gitlab.Client
+	client      GitLabClient
 	logger      *slog.Logger
 }
 
@@ -47,9 +47,19 @@ func New() (*App, error) {
 	return &App{
 		GitLabToken: token,
 		GitLabURI:   uri,
-		client:      client,
+		client:      NewGitLabClient(client),
 		logger:      logger.NoLogger(),
 	}, nil
+}
+
+// NewWithClient creates a new App instance with an injected GitLabClient (for testing)
+func NewWithClient(token, uri string, client GitLabClient) *App {
+	return &App{
+		GitLabToken: token,
+		GitLabURI:   uri,
+		client:      client,
+		logger:      logger.NoLogger(),
+	}
 }
 
 func (a *App) GetAPIURL() string {
@@ -61,7 +71,7 @@ func (a *App) SetLogger(l *slog.Logger) {
 }
 
 func (a *App) ValidateConnection() error {
-	_, _, err := a.client.Users.CurrentUser()
+	_, _, err := a.client.Users().CurrentUser()
 	if err != nil {
 		return fmt.Errorf("failed to validate token: %w", err)
 	}
@@ -126,7 +136,7 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	a.logger.Debug("Listing issues for project", "project_path", projectPath, "options", opts)
 	
 	// Get project by path
-	project, _, err := a.client.Projects.GetProject(projectPath, nil)
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
 		return nil, fmt.Errorf("failed to get project: %w", err)
@@ -162,7 +172,7 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	// For now, labels filtering is not implemented
 
 	// Call GitLab API
-	issues, _, err := a.client.Issues.ListProjectIssues(projectID, listOpts)
+	issues, _, err := a.client.Issues().ListProjectIssues(projectID, listOpts)
 	if err != nil {
 		a.logger.Error("Failed to list project issues", "error", err, "project_id", projectID)
 		return nil, fmt.Errorf("failed to list project issues: %w", err)
@@ -202,16 +212,6 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 
 // CreateProjectIssue creates a new issue for a given project path
 func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (*Issue, error) {
-	a.logger.Debug("Creating issue for project", "project_path", projectPath, "title", opts.Title)
-	
-	// Get project by path
-	project, _, err := a.client.Projects.GetProject(projectPath, nil)
-	if err != nil {
-		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
-	}
-	projectID := project.ID
-
 	// Validate required options
 	if opts == nil {
 		return nil, fmt.Errorf("create issue options are required")
@@ -219,6 +219,16 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	if opts.Title == "" {
 		return nil, fmt.Errorf("issue title is required")
 	}
+	
+	a.logger.Debug("Creating issue for project", "project_path", projectPath, "title", opts.Title)
+	
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
 
 	// Create GitLab API options
 	createOpts := &gitlab.CreateIssueOptions{
@@ -238,7 +248,7 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	}
 
 	// Call GitLab API
-	issue, _, err := a.client.Issues.CreateIssue(projectID, createOpts)
+	issue, _, err := a.client.Issues().CreateIssue(projectID, createOpts)
 	if err != nil {
 		a.logger.Error("Failed to create issue", "error", err, "project_id", projectID, "title", opts.Title)
 		return nil, fmt.Errorf("failed to create issue: %w", err)
@@ -277,7 +287,7 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 	a.logger.Debug("Listing labels for project", "project_path", projectPath, "options", opts)
 	
 	// Get project by path
-	project, _, err := a.client.Projects.GetProject(projectPath, nil)
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
 		return nil, fmt.Errorf("failed to get project: %w", err)
@@ -314,7 +324,7 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 	}
 
 	// Call GitLab API
-	labels, _, err := a.client.Labels.ListLabels(projectID, listOpts)
+	labels, _, err := a.client.Labels().ListLabels(projectID, listOpts)
 	if err != nil {
 		a.logger.Error("Failed to list project labels", "error", err, "project_id", projectID)
 		return nil, fmt.Errorf("failed to list project labels: %w", err)

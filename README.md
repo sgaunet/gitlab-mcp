@@ -37,7 +37,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 3. **Add to Claude Code:**
    ```bash
-   claude mcp add gitlab-mcp -s user -- /path/to/gitlab-mcp
+   claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
    ```
    
    Replace `/path/to/gitlab-mcp` with the actual path to your built executable.
@@ -58,15 +58,15 @@ Lists issues for a GitLab project using the project path.
 
 **Examples:**
 ```
-List all open issues for project sgaunet/poc-table
+List all open issues for project namespace/project_name
 ```
 
 ```
-List all issues (open and closed) for project sgaunet/poc-table
+List all issues (open and closed) for project namespace/project_name
 ```
 
 ```
-List issues with state=all and limit=50 for project sgaunet/poc-table
+List issues with state=all and limit=50 for project namespace/project_name
 ```
 
 **Response Format:**
@@ -94,11 +94,11 @@ Creates a new issue for a GitLab project.
 
 **Examples:**
 ```
-Create an issue with title "Bug fix needed" for project sgaunet/poc-table
+Create an issue with title "Bug fix needed" for project namespace/project_name
 ```
 
 ```
-Create an issue with title "Feature request", description "Add new functionality", and labels ["enhancement", "feature"] for project sgaunet/poc-table
+Create an issue with title "Feature request", description "Add new functionality", and labels ["enhancement", "feature"] for project namespace/project_name
 ```
 
 **Response Format:**
@@ -117,15 +117,15 @@ Lists labels for a GitLab project with optional filtering.
 
 **Examples:**
 ```
-List all labels for project sgaunet/poc-table
+List all labels for project namespace/project_name
 ```
 
 ```
-List labels with counts for project sgaunet/poc-table
+List labels with counts for project namespace/project_name
 ```
 
 ```
-Search for labels containing "bug" in project sgaunet/poc-table
+Search for labels containing "bug" in project namespace/project_name
 ```
 
 **Response Format:**
@@ -158,43 +158,27 @@ task build:coverage
 # Run linter
 task linter
 
-# Run integration tests
-task test:integration
+# Run unit tests
+task test
 
-# Run integration tests with coverage
-task test:integration:coverage
-
-# Calculate coverage from collected data
-task coverage:calculate
-
-# Clean coverage data
-task coverage:clean
-
-# Complete coverage workflow
-task coverage:full
+# Show test coverage percentage
+task coverage
 ```
 
 ### Running Tests
 
 **Unit Tests:**
 ```bash
-go test ./...
-```
-
-**Integration Tests:**
-```bash
-task test:integration
+task test
 ```
 
 **Coverage Testing:**
 ```bash
-task coverage:full
+# Show coverage percentage
+task coverage
 ```
 
-The coverage workflow builds a coverage-enabled binary, runs integration tests, and provides detailed coverage statistics:
-- Main package coverage
-- Internal/app package coverage  
-- Internal/logger package coverage
+The unit tests use interface abstractions and mocking to provide fast, reliable testing without external dependencies. Current test coverage is **74.1%**.
 
 ### Manual Testing
 

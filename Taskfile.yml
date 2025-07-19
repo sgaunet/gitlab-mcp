@@ -15,23 +15,16 @@ tasks:
       - go mod download
       - CGO_ENABLED=0 go build -o {{.BINFILE}} .
 
-  build:coverage:
-    desc: "Build the binary with coverage support"
-    cmds:
-      - go mod download
-      - mkdir -p .coverdata
-      - go build -cover -o {{.BINFILE}}-coverage .
-
   linter:
     desc: "Run linter"
     cmds:
       - go generate ./...
       - golangci-lint run
 
-  image:
-    desc: "Build/push the docker image version latest"
-    cmds:
-      - docker build . -t ghcr.io/sgaunet/{{.BINFILE}}:latest --push
+  # image:
+  #   desc: "Build/push the docker image version latest"
+  #   cmds:
+  #     - docker build . -t ghcr.io/sgaunet/{{.BINFILE}}:latest --push
 
   snapshot:
     desc: "Create a snapshot release"
@@ -43,38 +36,16 @@ tasks:
     cmds:
       - GITLAB_TOKEN="" goreleaser --clean --skip validate
 
-  test:integration:
-    desc: "Run integration tests"
-    deps: [build]
+  test:
+    desc: "Run unit tests"
     cmds:
-      - go test ./cmd/tests -v
+      - go test ./internal/... -v
 
-  test:integration:coverage:
-    desc: "Run integration tests with coverage"
-    deps: [build:coverage]
-    env:
-      GOCOVERDIR: "{{.PWD}}/.coverdata"
-      USE_COVERAGE_BINARY: 1
+  coverage:
+    desc: "Generate coverage report with percentage"
     cmds:
-      - go test ./cmd/tests -v
+      - go test ./internal/... -coverpkg=./internal/... -coverprofile=profile.cov
+      - echo -n "Total Coverage{{":"}} "
+      - go tool cover -func profile.cov | grep '^total{{":"}}' | awk '{print $3}'
+      - rm -f profile.cov
 
-  coverage:calculate:
-    desc: "Calculate coverage percentage from collected data"
-    cmds:
-      - echo "Coverage results:"
-      - go tool covdata percent -i=.coverdata
-
-  coverage:clean:
-    desc: "Clean coverage data directory"
-    cmds:
-      - rm -rf .coverdata
-
-  coverage:full:
-    desc: "Complete coverage workflow: build, test, and calculate coverage"
-    cmds:
-      - task: coverage:clean
-      - task: test:integration:coverage
-      - task: coverage:calculate
-      - task: coverage:clean
-
-    
