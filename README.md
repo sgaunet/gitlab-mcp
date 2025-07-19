@@ -6,6 +6,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 - **List Issues**: List issues for a GitLab project using project path (namespace/project-name)
 - **Create Issues**: Create new issues with title, description, labels, and assignees
+- **Update Issues**: Update existing issues (title, description, state, labels, assignees)
 - **List Labels**: List project labels with optional filtering and counts
 - Direct project path access - no need to resolve project IDs
 - Compatible with Claude Code's MCP architecture
@@ -104,6 +105,31 @@ Create an issue with title "Feature request", description "Add new functionality
 **Response Format:**
 Returns a JSON object of the created issue with the same structure as list_issues.
 
+### update_issues
+
+Updates an existing issue for a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `issue_iid` (number, required): Issue internal ID (IID) to update
+- `title` (string, optional): Updated issue title
+- `description` (string, optional): Updated issue description
+- `state` (string, optional): Issue state ('opened' or 'closed')
+- `labels` (array, optional): Array of labels to assign to the issue
+- `assignees` (array, optional): Array of user IDs to assign to the issue
+
+**Examples:**
+```
+Update the title of issue #5 for project namespace/project_name
+```
+
+```
+Close issue #10 and update its description for project namespace/project_name
+```
+
+**Response Format:**
+Returns a JSON object of the updated issue with the same structure as list_issues.
+
 ### list_labels
 
 Lists labels for a GitLab project with optional filtering.
@@ -178,7 +204,7 @@ task test
 task coverage
 ```
 
-The unit tests use interface abstractions and mocking to provide fast, reliable testing without external dependencies. Current test coverage is **74.1%**.
+The unit tests use interface abstractions and mocking to provide fast, reliable testing without external dependencies. Current test coverage is **78.8%**.
 
 ### Manual Testing
 

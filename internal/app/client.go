@@ -58,6 +58,10 @@ func (i *IssuesServiceWrapper) CreateIssue(pid interface{}, opt *gitlab.CreateIs
 	return i.service.CreateIssue(pid, opt)
 }
 
+func (i *IssuesServiceWrapper) UpdateIssue(pid interface{}, issue int, opt *gitlab.UpdateIssueOptions) (*gitlab.Issue, *gitlab.Response, error) {
+	return i.service.UpdateIssue(pid, issue, opt)
+}
+
 // LabelsServiceWrapper wraps the real Labels service
 type LabelsServiceWrapper struct {
 	service gitlab.LabelsServiceInterface

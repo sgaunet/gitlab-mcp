@@ -95,6 +95,15 @@ type CreateIssueOptions struct {
 	Assignees   []int
 }
 
+// UpdateIssueOptions contains options for updating a project issue
+type UpdateIssueOptions struct {
+	Title       string
+	Description string
+	State       string
+	Labels      []string
+	Assignees   []int
+}
+
 // ListLabelsOptions contains options for listing project labels
 type ListLabelsOptions struct {
 	WithCounts            bool
@@ -351,5 +360,86 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 	}
 
 	a.logger.Info("Successfully retrieved project labels", "count", len(result), "project_id", projectID)
+	return result, nil
+}
+
+// UpdateProjectIssue updates an existing issue for a given project path
+func (a *App) UpdateProjectIssue(projectPath string, issueIID int, opts *UpdateIssueOptions) (*Issue, error) {
+	// Validate required parameters
+	if issueIID <= 0 {
+		return nil, fmt.Errorf("issue IID must be a positive integer")
+	}
+	if opts == nil {
+		return nil, fmt.Errorf("update issue options are required")
+	}
+	
+	a.logger.Debug("Updating issue for project", "project_path", projectPath, "issue_iid", issueIID)
+	
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
+
+	// Create GitLab API options - only set fields that are provided
+	updateOpts := &gitlab.UpdateIssueOptions{}
+
+	if opts.Title != "" {
+		updateOpts.Title = &opts.Title
+	}
+	
+	if opts.Description != "" {
+		updateOpts.Description = &opts.Description
+	}
+	
+	if opts.State != "" {
+		updateOpts.StateEvent = &opts.State
+	}
+
+	// Add labels if provided
+	if len(opts.Labels) > 0 {
+		labels := gitlab.LabelOptions(opts.Labels)
+		updateOpts.Labels = &labels
+	}
+
+	// Add assignees if provided
+	if len(opts.Assignees) > 0 {
+		updateOpts.AssigneeIDs = &opts.Assignees
+	}
+
+	// Call GitLab API
+	issue, _, err := a.client.Issues().UpdateIssue(projectID, issueIID, updateOpts)
+	if err != nil {
+		a.logger.Error("Failed to update issue", "error", err, "project_id", projectID, "issue_iid", issueIID)
+		return nil, fmt.Errorf("failed to update issue: %w", err)
+	}
+
+	a.logger.Debug("Updated issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
+
+	// Convert assignees to the expected format
+	assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
+	for _, assignee := range issue.Assignees {
+		assignees = append(assignees, map[string]interface{}{
+			"id":       assignee.ID,
+			"username": assignee.Username,
+			"name":     assignee.Name,
+		})
+	}
+
+	result := &Issue{
+		ID:          issue.ID,
+		IID:         issue.IID,
+		Title:       issue.Title,
+		Description: issue.Description,
+		State:       issue.State,
+		Labels:      issue.Labels,
+		Assignees:   assignees,
+		CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+
+	a.logger.Info("Successfully updated issue", "id", result.ID, "iid", result.IID, "project_id", projectID, "title", result.Title)
 	return result, nil
 }

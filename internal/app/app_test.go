@@ -523,3 +523,204 @@ func TestApp_SetLogger(t *testing.T) {
 	
 	assert.Equal(t, logger, app.logger)
 }
+
+func TestApp_UpdateProjectIssue(t *testing.T) {
+	testTime := time.Now()
+	
+	tests := []struct {
+		name      string
+		issueIID  int
+		opts      *UpdateIssueOptions
+		setup     func(*MockGitLabClient, *MockProjectsService, *MockIssuesService)
+		want      *Issue
+		wantErr   bool
+	}{
+		{
+			name:     "successful update with all options",
+			issueIID: 10,
+			opts: &UpdateIssueOptions{
+				Title:       "Updated Title",
+				Description: "Updated description",
+				State:       "closed",
+				Labels:      []string{"bug", "fixed"},
+				Assignees:   []int{1, 2},
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
+				client.On("Projects").Return(projects)
+				client.On("Issues").Return(issues)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedLabels := gitlab.LabelOptions([]string{"bug", "fixed"})
+				expectedOpts := &gitlab.UpdateIssueOptions{
+					Title:       gitlab.Ptr("Updated Title"),
+					Description: gitlab.Ptr("Updated description"),
+					StateEvent:  gitlab.Ptr("closed"),
+					Labels:      &expectedLabels,
+					AssigneeIDs: &[]int{1, 2},
+				}
+				
+				issues.On("UpdateIssue", 123, 10, expectedOpts).Return(
+					&gitlab.Issue{
+						ID:          3,
+						IID:         10,
+						Title:       "Updated Title",
+						Description: "Updated description",
+						State:       "closed",
+						Labels:      []string{"bug", "fixed"},
+						Assignees: []*gitlab.IssueAssignee{
+							{ID: 1, Username: "user1", Name: "User One"},
+							{ID: 2, Username: "user2", Name: "User Two"},
+						},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: &Issue{
+				ID:          3,
+				IID:         10,
+				Title:       "Updated Title",
+				Description: "Updated description",
+				State:       "closed",
+				Labels:      []string{"bug", "fixed"},
+				Assignees: []map[string]interface{}{
+					{"id": 1, "username": "user1", "name": "User One"},
+					{"id": 2, "username": "user2", "name": "User Two"},
+				},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:     "successful update with partial options",
+			issueIID: 5,
+			opts: &UpdateIssueOptions{
+				Title: "Just updating title",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
+				client.On("Projects").Return(projects)
+				client.On("Issues").Return(issues)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.UpdateIssueOptions{
+					Title: gitlab.Ptr("Just updating title"),
+				}
+				
+				issues.On("UpdateIssue", 123, 5, expectedOpts).Return(
+					&gitlab.Issue{
+						ID:          4,
+						IID:         5,
+						Title:       "Just updating title",
+						Description: "Original description",
+						State:       "opened",
+						Labels:      []string{},
+						Assignees:   []*gitlab.IssueAssignee{},
+						CreatedAt:   &testTime,
+						UpdatedAt:   &testTime,
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: &Issue{
+				ID:          4,
+				IID:         5,
+				Title:       "Just updating title",
+				Description: "Original description",
+				State:       "opened",
+				Labels:      []string{},
+				Assignees:   []map[string]interface{}{},
+				CreatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:     "invalid issue IID",
+			issueIID: 0,
+			opts:     &UpdateIssueOptions{Title: "Test"},
+			setup:    func(*MockGitLabClient, *MockProjectsService, *MockIssuesService) {},
+			want:     nil,
+			wantErr:  true,
+		},
+		{
+			name:     "nil options",
+			issueIID: 1,
+			opts:     nil,
+			setup:    func(*MockGitLabClient, *MockProjectsService, *MockIssuesService) {},
+			want:     nil,
+			wantErr:  true,
+		},
+		{
+			name:     "project not found",
+			issueIID: 1,
+			opts:     &UpdateIssueOptions{Title: "Test"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:     "update fails",
+			issueIID: 1,
+			opts:     &UpdateIssueOptions{Title: "Test"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
+				client.On("Projects").Return(projects)
+				client.On("Issues").Return(issues)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.UpdateIssueOptions{
+					Title: gitlab.Ptr("Test"),
+				}
+				
+				issues.On("UpdateIssue", 123, 1, expectedOpts).Return(
+					(*gitlab.Issue)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockIssues := &MockIssuesService{}
+			
+			tt.setup(mockClient, mockProjects, mockIssues)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
+			
+			result, err := app.UpdateProjectIssue("test/project", tt.issueIID, tt.opts)
+			
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, result)
+			}
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockIssues.AssertExpectations(t)
+		})
+	}
+}

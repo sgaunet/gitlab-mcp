@@ -221,6 +221,118 @@ func main() {
 		),
 	)
 
+	// Create update_issues tool
+	updateIssueTool := mcp.NewTool("update_issues",
+		mcp.WithDescription("Update an existing issue for a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("issue_iid",
+			mcp.Required(),
+			mcp.Description("Issue internal ID (IID) to update"),
+		),
+		mcp.WithString("title",
+			mcp.Description("Updated issue title"),
+		),
+		mcp.WithString("description",
+			mcp.Description("Updated issue description"),
+		),
+		mcp.WithString("state",
+			mcp.Description("Issue state: 'opened' or 'closed'"),
+		),
+		mcp.WithArray("labels",
+			mcp.Description("Array of labels to assign to the issue"),
+		),
+		mcp.WithArray("assignees",
+			mcp.Description("Array of user IDs to assign to the issue"),
+		),
+	)
+
+	// Add update_issues tool handler
+	s.AddTool(updateIssueTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received update_issues tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract issue_iid (required)
+		issueIIDFloat, ok := args["issue_iid"].(float64)
+		if !ok {
+			debugLogger.Error("issue_iid is missing or not a number", "value", args["issue_iid"])
+			return mcp.NewToolResultError("issue_iid must be a number"), nil
+		}
+		issueIID := int(issueIIDFloat)
+
+		// Create options
+		opts := &app.UpdateIssueOptions{}
+
+		// Extract optional title
+		if title, ok := args["title"].(string); ok && title != "" {
+			opts.Title = title
+		}
+
+		// Extract optional description
+		if description, ok := args["description"].(string); ok {
+			opts.Description = description
+		}
+
+		// Extract optional state
+		if state, ok := args["state"].(string); ok && state != "" {
+			if state != "opened" && state != "closed" {
+				debugLogger.Error("invalid state value", "state", state)
+				return mcp.NewToolResultError("state must be 'opened' or 'closed'"), nil
+			}
+			opts.State = state
+		}
+
+		// Extract optional labels
+		if labelsInterface, ok := args["labels"].([]interface{}); ok {
+			labels := make([]string, 0, len(labelsInterface))
+			for _, label := range labelsInterface {
+				if labelStr, ok := label.(string); ok {
+					labels = append(labels, labelStr)
+				}
+			}
+			opts.Labels = labels
+		}
+
+		// Extract optional assignees
+		if assigneesInterface, ok := args["assignees"].([]interface{}); ok {
+			assignees := make([]int, 0, len(assigneesInterface))
+			for _, assignee := range assigneesInterface {
+				if assigneeFloat, ok := assignee.(float64); ok {
+					assignees = append(assignees, int(assigneeFloat))
+				}
+			}
+			opts.Assignees = assignees
+		}
+
+		debugLogger.Debug("Processing update_issues request", "project_path", projectPath, "issue_iid", issueIID)
+
+		// Call the app method
+		issue, err := appInstance.UpdateProjectIssue(projectPath, issueIID, opts)
+		if err != nil {
+			debugLogger.Error("Failed to update issue", "error", err, "project_path", projectPath, "issue_iid", issueIID)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to update issue: %v", err)), nil
+		}
+
+		// Convert issue to JSON
+		jsonData, err := json.Marshal(issue)
+		if err != nil {
+			debugLogger.Error("Failed to marshal issue to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format issue response"), nil
+		}
+
+		debugLogger.Info("Successfully updated issue", "id", issue.ID, "iid", issue.IID, "project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	})
+
 	// Add list_labels tool handler
 	s.AddTool(listLabelsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()

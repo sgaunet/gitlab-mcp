@@ -55,6 +55,11 @@ func (m *MockIssuesService) CreateIssue(pid interface{}, opt *gitlab.CreateIssue
 	return args.Get(0).(*gitlab.Issue), args.Get(1).(*gitlab.Response), args.Error(2)
 }
 
+func (m *MockIssuesService) UpdateIssue(pid interface{}, issue int, opt *gitlab.UpdateIssueOptions) (*gitlab.Issue, *gitlab.Response, error) {
+	args := m.Called(pid, issue, opt)
+	return args.Get(0).(*gitlab.Issue), args.Get(1).(*gitlab.Response), args.Error(2)
+}
+
 // MockLabelsService is a mock implementation of LabelsService
 type MockLabelsService struct {
 	mock.Mock
