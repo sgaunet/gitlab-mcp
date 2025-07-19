@@ -221,6 +221,28 @@ Run the test script:
 
 The MCP server runs as a subprocess and communicates via JSON-RPC over stdin/stdout. No additional configuration is required.
 
+### MCP Transport Protocol
+
+This server uses **stdio (stdin/stdout)** for communication, which is the standard and recommended approach for MCP servers:
+
+**✅ Why stdio is optimal:**
+- **Standard MCP pattern** - Most MCP servers use stdio communication
+- **Simple process model** - Started by Claude Code as a subprocess  
+- **No port conflicts** - No network port management needed
+- **Security** - Process isolation, no network exposure
+- **Resource efficiency** - Direct pipe communication with minimal overhead
+- **Cross-platform compatibility** - Works everywhere Go works
+- **Easy configuration** - Just specify the executable path in Claude Code
+
+**🌐 Alternative transports (HTTP/SSE):**
+While MCP supports HTTP and Server-Sent Events, these are better suited for:
+- Multi-client scenarios (serving multiple agents simultaneously)
+- Containerized environments where process spawning is restricted  
+- Remote access across network boundaries
+- Web-based MCP clients
+
+**For GitLab integration with Claude Code, stdio provides the best user experience** with simple configuration and reliable performance.
+
 ## Troubleshooting
 
 ### Common Issues
