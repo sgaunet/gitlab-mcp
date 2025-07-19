@@ -147,6 +147,14 @@ type CreateIssueOptions struct {
 	Assignees   []int
 }
 
+// ListLabelsOptions contains options for listing project labels
+type ListLabelsOptions struct {
+	WithCounts            bool
+	IncludeAncestorGroups bool
+	Search                string
+	Limit                 int
+}
+
 // Issue represents a GitLab issue
 type Issue struct {
 	ID          int                    `json:"id"`
@@ -158,6 +166,21 @@ type Issue struct {
 	Assignees   []map[string]interface{} `json:"assignees"`
 	CreatedAt   string                 `json:"created_at"`
 	UpdatedAt   string                 `json:"updated_at"`
+}
+
+// Label represents a GitLab label
+type Label struct {
+	ID                     int    `json:"id"`
+	Name                   string `json:"name"`
+	Color                  string `json:"color"`
+	TextColor              string `json:"text_color"`
+	Description            string `json:"description"`
+	OpenIssuesCount        int    `json:"open_issues_count"`
+	ClosedIssuesCount      int    `json:"closed_issues_count"`
+	OpenMergeRequestsCount int    `json:"open_merge_requests_count"`
+	Subscribed             bool   `json:"subscribed"`
+	Priority               int    `json:"priority"`
+	IsProjectLabel         bool   `json:"is_project_label"`
 }
 
 // ListProjectIssues retrieves issues for a given project ID
@@ -292,5 +315,69 @@ func (a *App) CreateProjectIssue(projectID int, opts *CreateIssueOptions) (*Issu
 	}
 
 	a.logger.Info("Successfully created issue", "id", result.ID, "iid", result.IID, "project_id", projectID, "title", result.Title)
+	return result, nil
+}
+
+// ListProjectLabels retrieves labels for a given project ID
+func (a *App) ListProjectLabels(projectID int, opts *ListLabelsOptions) ([]Label, error) {
+	a.logger.Debug("Listing labels for project", "project_id", projectID, "options", opts)
+
+	// Set default options if not provided
+	if opts == nil {
+		opts = &ListLabelsOptions{
+			WithCounts:            false,
+			IncludeAncestorGroups: false,
+			Limit:                 100,
+		}
+	}
+
+	// Set defaults for individual options
+	if opts.Limit == 0 {
+		opts.Limit = 100
+	}
+	if opts.Limit > 100 {
+		opts.Limit = 100 // Cap at 100 labels
+	}
+
+	// Create GitLab API options
+	listOpts := &gitlab.ListLabelsOptions{
+		WithCounts:            &opts.WithCounts,
+		IncludeAncestorGroups: &opts.IncludeAncestorGroups,
+		ListOptions:           gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+	}
+
+	// Add search filter if provided
+	if opts.Search != "" {
+		listOpts.Search = &opts.Search
+	}
+
+	// Call GitLab API
+	labels, _, err := a.client.Labels.ListLabels(projectID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to list project labels", "error", err, "project_id", projectID)
+		return nil, fmt.Errorf("failed to list project labels: %w", err)
+	}
+
+	a.logger.Debug("Retrieved labels", "count", len(labels), "project_id", projectID)
+
+	// Convert GitLab labels to our Label struct
+	result := make([]Label, 0, len(labels))
+	for _, label := range labels {
+		result = append(result, Label{
+			ID:                     label.ID,
+			Name:                   label.Name,
+			Color:                  label.Color,
+			TextColor:              label.TextColor,
+			Description:            label.Description,
+			OpenIssuesCount:        label.OpenIssuesCount,
+			ClosedIssuesCount:      label.ClosedIssuesCount,
+			OpenMergeRequestsCount: label.OpenMergeRequestsCount,
+			Subscribed:             label.Subscribed,
+			Priority:               label.Priority,
+			IsProjectLabel:         label.IsProjectLabel,
+		})
+	}
+
+	a.logger.Info("Successfully retrieved project labels", "count", len(result), "project_id", projectID)
 	return result, nil
 }

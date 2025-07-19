@@ -233,6 +233,83 @@ func main() {
 		return mcp.NewToolResultText(string(jsonData)), nil
 	})
 
+	// Create list_labels tool
+	listLabelsTool := mcp.NewTool("list_labels",
+		mcp.WithDescription("List labels for a GitLab project by project ID"),
+		mcp.WithNumber("project_id",
+			mcp.Required(),
+			mcp.Description("GitLab project ID"),
+		),
+		mcp.WithBoolean("with_counts",
+			mcp.Description("Include issue and merge request counts (default: false)"),
+		),
+		mcp.WithBoolean("include_ancestor_groups",
+			mcp.Description("Include labels from ancestor groups (default: false)"),
+		),
+		mcp.WithString("search",
+			mcp.Description("Filter labels by search keyword"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of labels to return (default: 100, max: 100)"),
+		),
+	)
+
+	// Add list_labels tool handler
+	s.AddTool(listLabelsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received list_labels tool request", "args", args)
+
+		// Extract project_id
+		projectIDFloat, ok := args["project_id"].(float64)
+		if !ok {
+			debugLogger.Error("project_id is not a number", "value", args["project_id"])
+			return mcp.NewToolResultError("project_id must be a number"), nil
+		}
+		projectID := int(projectIDFloat)
+
+		// Extract optional parameters
+		opts := &app.ListLabelsOptions{
+			WithCounts:            false, // default
+			IncludeAncestorGroups: false, // default
+			Limit:                 100,   // default
+		}
+
+		if withCounts, ok := args["with_counts"].(bool); ok {
+			opts.WithCounts = withCounts
+		}
+
+		if includeAncestorGroups, ok := args["include_ancestor_groups"].(bool); ok {
+			opts.IncludeAncestorGroups = includeAncestorGroups
+		}
+
+		if search, ok := args["search"].(string); ok && search != "" {
+			opts.Search = search
+		}
+
+		if limitFloat, ok := args["limit"].(float64); ok {
+			opts.Limit = int(limitFloat)
+		}
+
+		debugLogger.Debug("Processing list_labels request", "project_id", projectID, "opts", opts)
+
+		// Call the app method
+		labels, err := appInstance.ListProjectLabels(projectID, opts)
+		if err != nil {
+			debugLogger.Error("Failed to list project labels", "error", err, "project_id", projectID)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to list project labels: %v", err)), nil
+		}
+
+		// Convert labels to JSON
+		jsonData, err := json.Marshal(labels)
+		if err != nil {
+			debugLogger.Error("Failed to marshal labels to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format labels response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved project labels", "count", len(labels), "project_id", projectID)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	})
+
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)

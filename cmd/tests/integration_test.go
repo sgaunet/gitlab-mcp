@@ -86,7 +86,7 @@ func TestMCPServerIntegration(t *testing.T) {
 			toolsResponse, err := client.ListTools(ctx, nil)
 			require.NoError(t, err, "Failed to list tools")
 
-			assert.Len(t, toolsResponse.Tools, 3, "Expected exactly three tools")
+			assert.Len(t, toolsResponse.Tools, 4, "Expected exactly four tools")
 
 			// Find tools by name to make test order-independent
 			toolMap := make(map[string]interface{})
@@ -95,7 +95,7 @@ func TestMCPServerIntegration(t *testing.T) {
 			}
 
 			// Check that all expected tools are present
-			expectedTools := []string{"get_project_id", "list_issues", "create_issues"}
+			expectedTools := []string{"get_project_id", "list_issues", "create_issues", "list_labels"}
 			for _, expectedTool := range expectedTools {
 				_, exists := toolMap[expectedTool]
 				assert.True(t, exists, "%s tool should exist", expectedTool)
@@ -291,7 +291,114 @@ func TestMCPServerIntegration(t *testing.T) {
 			t.Logf("Created issue with labels: %v", labels)
 		})
 
-		// Test 8: Error handling - create_issues missing required parameter
+		// Test 8: Call the list_labels tool
+		t.Run("CallListLabelsTool", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			// Test with the project ID from the previous test
+			args := map[string]interface{}{
+				"project_id": 71379509,
+			}
+
+			toolResult, err := client.CallTool(ctx, "list_labels", args)
+			require.NoError(t, err, "Failed to call list_labels tool")
+
+			assert.NotNil(t, toolResult.Content, "Tool result should have content")
+			assert.Len(t, toolResult.Content, 1, "Expected exactly one content item")
+
+			content := toolResult.Content[0]
+			assert.Equal(t, "text", string(content.Type), "Content type should be text")
+			assert.NotNil(t, content.TextContent, "TextContent should be present")
+			
+			// Parse the JSON response to verify it's valid
+			var labels []map[string]interface{}
+			err = json.Unmarshal([]byte(content.TextContent.Text), &labels)
+			require.NoError(t, err, "Response should be valid JSON")
+			
+			t.Logf("Retrieved %d labels", len(labels))
+			
+			// If there are labels, verify the structure
+			if len(labels) > 0 {
+				label := labels[0]
+				assert.NotNil(t, label["id"], "Label should have an ID")
+				assert.NotNil(t, label["name"], "Label should have a name")
+				assert.NotNil(t, label["color"], "Label should have a color")
+				
+				t.Logf("First label: %s (ID: %v, Color: %s)", label["name"], label["id"], label["color"])
+			}
+		})
+
+		// Test 9: Call list_labels with search parameter
+		t.Run("CallListLabelsWithSearch", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			// Test with search parameter
+			args := map[string]interface{}{
+				"project_id": 71379509,
+				"search":     "test",
+			}
+
+			toolResult, err := client.CallTool(ctx, "list_labels", args)
+			require.NoError(t, err, "Failed to call list_labels tool with search")
+
+			assert.NotNil(t, toolResult.Content, "Tool result should have content")
+			assert.Len(t, toolResult.Content, 1, "Expected exactly one content item")
+
+			content := toolResult.Content[0]
+			assert.Equal(t, "text", string(content.Type), "Content type should be text")
+			assert.NotNil(t, content.TextContent, "TextContent should be present")
+			
+			// Parse the JSON response to verify it's valid
+			var labels []map[string]interface{}
+			err = json.Unmarshal([]byte(content.TextContent.Text), &labels)
+			require.NoError(t, err, "Response should be valid JSON")
+			
+			t.Logf("Retrieved %d labels with search='test'", len(labels))
+		})
+
+		// Test 10: Call list_labels with with_counts parameter
+		t.Run("CallListLabelsWithCounts", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			// Test with with_counts parameter
+			args := map[string]interface{}{
+				"project_id": 71379509,
+				"with_counts": true,
+			}
+
+			toolResult, err := client.CallTool(ctx, "list_labels", args)
+			require.NoError(t, err, "Failed to call list_labels tool with counts")
+
+			assert.NotNil(t, toolResult.Content, "Tool result should have content")
+			assert.Len(t, toolResult.Content, 1, "Expected exactly one content item")
+
+			content := toolResult.Content[0]
+			assert.Equal(t, "text", string(content.Type), "Content type should be text")
+			assert.NotNil(t, content.TextContent, "TextContent should be present")
+			
+			// Parse the JSON response to verify it's valid
+			var labels []map[string]interface{}
+			err = json.Unmarshal([]byte(content.TextContent.Text), &labels)
+			require.NoError(t, err, "Response should be valid JSON")
+			
+			t.Logf("Retrieved %d labels with counts", len(labels))
+			
+			// If there are labels, verify the count fields are present
+			if len(labels) > 0 {
+				label := labels[0]
+				assert.NotNil(t, label["open_issues_count"], "Label should have open_issues_count")
+				assert.NotNil(t, label["closed_issues_count"], "Label should have closed_issues_count")
+				assert.NotNil(t, label["open_merge_requests_count"], "Label should have open_merge_requests_count")
+				
+				t.Logf("First label counts - Open Issues: %v, Closed Issues: %v, Open MRs: %v", 
+					label["open_issues_count"], label["closed_issues_count"], label["open_merge_requests_count"])
+			}
+		})
+
+		// Test 11: Error handling - create_issues missing required parameter
 		t.Run("CallCreateIssuesMissingTitle", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
