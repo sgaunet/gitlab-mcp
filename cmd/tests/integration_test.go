@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -86,7 +87,7 @@ func TestMCPServerIntegration(t *testing.T) {
 			toolsResponse, err := client.ListTools(ctx, nil)
 			require.NoError(t, err, "Failed to list tools")
 
-			assert.Len(t, toolsResponse.Tools, 4, "Expected exactly four tools")
+			assert.Len(t, toolsResponse.Tools, 3, "Expected exactly three tools")
 
 			// Find tools by name to make test order-independent
 			toolMap := make(map[string]interface{})
@@ -95,20 +96,20 @@ func TestMCPServerIntegration(t *testing.T) {
 			}
 
 			// Check that all expected tools are present
-			expectedTools := []string{"get_project_id", "list_issues", "create_issues", "list_labels"}
+			expectedTools := []string{"list_issues", "create_issues", "list_labels"}
 			for _, expectedTool := range expectedTools {
 				_, exists := toolMap[expectedTool]
 				assert.True(t, exists, "%s tool should exist", expectedTool)
 			}
 
-			// Test get_project_id tool specifically for detailed validation
+			// Test list_issues tool specifically for detailed validation
 			for _, tool := range toolsResponse.Tools {
-				if tool.Name == "get_project_id" {
-					assert.NotNil(t, tool.Description, "get_project_id tool description should not be nil")
-					assert.Equal(t, "Get GitLab project ID from git remote repository URL", *tool.Description, "get_project_id tool description mismatch")
+				if tool.Name == "list_issues" {
+					assert.NotNil(t, tool.Description, "list_issues tool description should not be nil")
+					assert.Equal(t, "List issues for a GitLab project by project path", *tool.Description, "list_issues tool description mismatch")
 
-					// Check input schema for get_project_id tool
-					assert.NotNil(t, tool.InputSchema, "get_project_id tool input schema should be present")
+					// Check input schema for list_issues tool
+					assert.NotNil(t, tool.InputSchema, "list_issues tool input schema should be present")
 					schema := tool.InputSchema.(map[string]interface{})
 					assert.Equal(t, "object", schema["type"], "Input schema type should be object")
 
@@ -116,52 +117,30 @@ func TestMCPServerIntegration(t *testing.T) {
 					required, exists := schema["required"]
 					assert.True(t, exists, "Required field should exist")
 					requiredSlice := required.([]interface{})
-					assert.Contains(t, requiredSlice, "remote_url", "remote_url should be required")
+					assert.Contains(t, requiredSlice, "project_path", "project_path should be required")
 
 					// Check properties
 					properties, exists := schema["properties"]
 					assert.True(t, exists, "Properties field should exist")
 					propertiesMap := properties.(map[string]interface{})
-					remoteUrlProp, exists := propertiesMap["remote_url"]
-					assert.True(t, exists, "remote_url property should exist")
-					remoteUrlPropMap := remoteUrlProp.(map[string]interface{})
-					assert.Equal(t, "string", remoteUrlPropMap["type"], "remote_url should be string type")
-					assert.Equal(t, "Git remote repository URL (SSH or HTTPS)", remoteUrlPropMap["description"], "remote_url description mismatch")
+					projectPathProp, exists := propertiesMap["project_path"]
+					assert.True(t, exists, "project_path property should exist")
+					projectPathPropMap := projectPathProp.(map[string]interface{})
+					assert.Equal(t, "string", projectPathPropMap["type"], "project_path should be string type")
+					assert.Equal(t, "GitLab project path (e.g., 'namespace/project-name')", projectPathPropMap["description"], "project_path description mismatch")
 					break
 				}
 			}
 		})
 
-		// Test 3: Call the get_project_id tool
-		t.Run("CallGetProjectIDTool", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
-			// Test with the real GitLab repository
-			args := map[string]interface{}{
-				"remote_url": "git@gitlab.com:sgaunet/poc-table.git",
-			}
-
-			toolResult, err := client.CallTool(ctx, "get_project_id", args)
-			require.NoError(t, err, "Failed to call get_project_id tool")
-
-			assert.NotNil(t, toolResult.Content, "Tool result should have content")
-			assert.Len(t, toolResult.Content, 1, "Expected exactly one content item")
-
-			content := toolResult.Content[0]
-			assert.Equal(t, "text", string(content.Type), "Content type should be text")
-			assert.NotNil(t, content.TextContent, "TextContent should be present")
-			assert.Equal(t, "71379509", content.TextContent.Text, "Expected project ID 71379509")
-		})
-
-		// Test 4: Call the list_issues tool
+		// Test 3: Call the list_issues tool
 		t.Run("CallListIssuesTool", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			// Test with the project ID from the previous test
+			// Test with the project path
 			args := map[string]interface{}{
-				"project_id": 71379509,
+				"project_path": "sgaunet/poc-table",
 			}
 
 			toolResult, err := client.CallTool(ctx, "list_issues", args)
@@ -182,15 +161,15 @@ func TestMCPServerIntegration(t *testing.T) {
 			t.Logf("Retrieved %d issues", len(issues))
 		})
 
-		// Test 5: Call list_issues with state filter
+		// Test 4: Call list_issues with state filter
 		t.Run("CallListIssuesWithStateFilter", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// Test with state filter
 			args := map[string]interface{}{
-				"project_id": 71379509,
-				"state":      "all",
+				"project_path": "sgaunet/poc-table",
+				"state":        "all",
 			}
 
 			toolResult, err := client.CallTool(ctx, "list_issues", args)
@@ -211,15 +190,15 @@ func TestMCPServerIntegration(t *testing.T) {
 			t.Logf("Retrieved %d issues with state=all", len(issues))
 		})
 
-		// Test 6: Call the create_issues tool
+		// Test 5: Call the create_issues tool
 		t.Run("CallCreateIssuesTool", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// Test with minimal required parameters
 			args := map[string]interface{}{
-				"project_id": 71379509,
-				"title":      "Test Issue Created by MCP Server",
+				"project_path": "sgaunet/poc-table",
+				"title":        "Test Issue Created by MCP Server",
 			}
 
 			toolResult, err := client.CallTool(ctx, "create_issues", args)
@@ -246,14 +225,14 @@ func TestMCPServerIntegration(t *testing.T) {
 			t.Logf("Created issue with ID %v and IID %v", issue["id"], issue["iid"])
 		})
 
-		// Test 7: Call create_issues with optional parameters
+		// Test 6: Call create_issues with optional parameters
 		t.Run("CallCreateIssuesWithOptionalParams", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// Test with description and labels
 			args := map[string]interface{}{
-				"project_id":  71379509,
+				"project_path": "sgaunet/poc-table",
 				"title":       "Test Issue with Description and Labels",
 				"description": "This is a test issue created by the MCP server integration test with additional parameters.",
 				"labels":      []interface{}{"test", "mcp", "automation"},
@@ -291,14 +270,14 @@ func TestMCPServerIntegration(t *testing.T) {
 			t.Logf("Created issue with labels: %v", labels)
 		})
 
-		// Test 8: Call the list_labels tool
+		// Test 7: Call the list_labels tool
 		t.Run("CallListLabelsTool", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			// Test with the project ID from the previous test
+			// Test with the project path
 			args := map[string]interface{}{
-				"project_id": 71379509,
+				"project_path": "sgaunet/poc-table",
 			}
 
 			toolResult, err := client.CallTool(ctx, "list_labels", args)
@@ -329,14 +308,14 @@ func TestMCPServerIntegration(t *testing.T) {
 			}
 		})
 
-		// Test 9: Call list_labels with search parameter
+		// Test 8: Call list_labels with search parameter
 		t.Run("CallListLabelsWithSearch", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// Test with search parameter
 			args := map[string]interface{}{
-				"project_id": 71379509,
+				"project_path": "sgaunet/poc-table",
 				"search":     "test",
 			}
 
@@ -358,15 +337,15 @@ func TestMCPServerIntegration(t *testing.T) {
 			t.Logf("Retrieved %d labels with search='test'", len(labels))
 		})
 
-		// Test 10: Call list_labels with with_counts parameter
+		// Test 9: Call list_labels with with_counts parameter
 		t.Run("CallListLabelsWithCounts", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// Test with with_counts parameter
 			args := map[string]interface{}{
-				"project_id": 71379509,
-				"with_counts": true,
+				"project_path": "sgaunet/poc-table",
+				"with_counts":  true,
 			}
 
 			toolResult, err := client.CallTool(ctx, "list_labels", args)
@@ -451,16 +430,16 @@ func TestMCPServerIntegration(t *testing.T) {
 			assert.Error(t, err, "Calling invalid tool should return error")
 		})
 
-		// Test 11: Error handling - missing required parameter
+		// Test 10: Error handling - missing required parameter
 		t.Run("CallToolMissingParameter", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			args := map[string]interface{}{
-				// Missing remote_url parameter
+				// Missing project_path parameter
 			}
 
-			toolResult, err := client.CallTool(ctx, "get_project_id", args)
+			toolResult, err := client.CallTool(ctx, "list_issues", args)
 			// Either should return an error or tool result should indicate failure
 			if err == nil {
 				// If no error, the tool should handle the missing parameter gracefully
@@ -470,22 +449,22 @@ func TestMCPServerIntegration(t *testing.T) {
 			}
 		})
 
-		// Test 12: Error handling - invalid repository URL
+		// Test 11: Error handling - invalid project path
 		t.Run("CallToolInvalidURL", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			args := map[string]interface{}{
-				"remote_url": "invalid-url",
+				"project_path": "invalid/nonexistent-project",
 			}
 
-			toolResult, err := client.CallTool(ctx, "get_project_id", args)
+			toolResult, err := client.CallTool(ctx, "list_issues", args)
 			// Either should return an error or tool result should indicate failure
 			if err == nil {
-				// If no error, the tool should handle the invalid URL gracefully
+				// If no error, the tool should handle the invalid project path gracefully
 				assert.NotNil(t, toolResult, "Tool result should not be nil")
 				// The tool might return an error message in the content
-				t.Logf("Tool result for invalid URL: %+v", toolResult)
+				t.Logf("Tool result for invalid project path: %+v", toolResult)
 			}
 		})
 	})
@@ -552,10 +531,10 @@ func TestMCPServerConcurrency(t *testing.T) {
 				defer cancel()
 
 				args := map[string]interface{}{
-					"remote_url": "git@gitlab.com:sgaunet/poc-table.git",
+					"project_path": "sgaunet/poc-table",
 				}
 
-				toolResult, err := client.CallTool(ctx, "get_project_id", args)
+				toolResult, err := client.CallTool(ctx, "list_issues", args)
 				if err != nil {
 					errors <- err
 					return
@@ -566,7 +545,14 @@ func TestMCPServerConcurrency(t *testing.T) {
 					return
 				}
 
-				results <- toolResult.Content[0].TextContent.Text
+				// For list_issues, we expect JSON content
+				var issues []interface{}
+				if json.Unmarshal([]byte(toolResult.Content[0].TextContent.Text), &issues) != nil {
+					errors <- assert.AnError
+					return
+				}
+
+				results <- fmt.Sprintf("%d", len(issues))
 			}()
 		}
 
@@ -574,7 +560,8 @@ func TestMCPServerConcurrency(t *testing.T) {
 		for i := 0; i < numCalls; i++ {
 			select {
 			case result := <-results:
-				assert.Equal(t, "71379509", result, "Expected project ID 71379509")
+				// For list_issues, we expect a number of issues (not project ID)
+				t.Logf("Concurrent call result: %s", result)
 			case err := <-errors:
 				t.Errorf("Concurrent tool call failed: %v", err)
 			case <-time.After(45 * time.Second):

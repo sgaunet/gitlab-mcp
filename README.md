@@ -4,9 +4,10 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 ## Features
 
-- **Get Project ID**: Extract GitLab project ID from remote repository URLs
-- **List Issues**: List issues for a given GitLab project ID with filtering options
-- Support for both SSH and HTTPS GitLab URLs
+- **List Issues**: List issues for a GitLab project using project path (namespace/project-name)
+- **Create Issues**: Create new issues with title, description, labels, and assignees
+- **List Labels**: List project labels with optional filtering and counts
+- Direct project path access - no need to resolve project IDs
 - Compatible with Claude Code's MCP architecture
 
 ## Prerequisites
@@ -45,43 +46,27 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 Once installed, the MCP server provides the following tools in Claude Code:
 
-### get_project_id
-
-Extracts the GitLab project ID from a repository URL.
-
-**Parameters:**
-- `remote_url` (string): GitLab repository URL (SSH or HTTPS format)
-
-**Example:**
-```
-Give me the GitLab project ID for git@gitlab.com:example/example-project.git
-```
-
-**Supported URL formats:**
-- SSH: `git@gitlab.com:user/repo.git`
-- HTTPS: `https://gitlab.com/user/repo.git`
-
 ### list_issues
 
-Lists issues for a given GitLab project ID with optional filtering.
+Lists issues for a GitLab project using the project path.
 
 **Parameters:**
-- `project_id` (number, required): GitLab project ID
+- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
 - `state` (string, optional): Filter by issue state (`opened`, `closed`, `all`) - defaults to `opened`
 - `labels` (string, optional): Comma-separated list of labels to filter by
 - `limit` (number, optional): Maximum number of issues to return (default: 100, max: 100)
 
 **Examples:**
 ```
-List all open issues for GitLab project ID 12345
+List all open issues for project sgaunet/poc-table
 ```
 
 ```
-List all issues (open and closed) for GitLab project ID 12345
+List all issues (open and closed) for project sgaunet/poc-table
 ```
 
 ```
-List issues with state=all and limit=50 for GitLab project ID 12345
+List issues with state=all and limit=50 for project sgaunet/poc-table
 ```
 
 **Response Format:**
@@ -95,6 +80,64 @@ Returns a JSON array of issue objects, each containing:
 - `assignees`: Array of assignee objects
 - `created_at`: Creation timestamp
 - `updated_at`: Last update timestamp
+
+### create_issues
+
+Creates a new issue for a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `title` (string, required): Issue title
+- `description` (string, optional): Issue description
+- `labels` (array, optional): Array of labels to assign to the issue
+- `assignees` (array, optional): Array of user IDs to assign to the issue
+
+**Examples:**
+```
+Create an issue with title "Bug fix needed" for project sgaunet/poc-table
+```
+
+```
+Create an issue with title "Feature request", description "Add new functionality", and labels ["enhancement", "feature"] for project sgaunet/poc-table
+```
+
+**Response Format:**
+Returns a JSON object of the created issue with the same structure as list_issues.
+
+### list_labels
+
+Lists labels for a GitLab project with optional filtering.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `with_counts` (boolean, optional): Include issue and merge request counts (default: false)
+- `include_ancestor_groups` (boolean, optional): Include labels from ancestor groups (default: false)
+- `search` (string, optional): Filter labels by search keyword
+- `limit` (number, optional): Maximum number of labels to return (default: 100, max: 100)
+
+**Examples:**
+```
+List all labels for project sgaunet/poc-table
+```
+
+```
+List labels with counts for project sgaunet/poc-table
+```
+
+```
+Search for labels containing "bug" in project sgaunet/poc-table
+```
+
+**Response Format:**
+Returns a JSON array of label objects, each containing:
+- `id`: Label ID
+- `name`: Label name
+- `color`: Label color (hex code)
+- `text_color`: Text color for the label
+- `description`: Label description
+- `open_issues_count`: Number of open issues (if with_counts=true)
+- `closed_issues_count`: Number of closed issues (if with_counts=true)
+- `open_merge_requests_count`: Number of open merge requests (if with_counts=true)
 
 ## Development
 

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
 	"gitlab.com/gitlab-org/api/client-go"
@@ -70,67 +69,6 @@ func (a *App) ValidateConnection() error {
 	return nil
 }
 
-func (a *App) GetProjectID(remoteURL string) (int, error) {
-	a.logger.Debug("Getting project ID for remote URL", "url", remoteURL)
-	
-	projectName, err := a.extractProjectName(remoteURL)
-	if err != nil {
-		a.logger.Error("Failed to extract project name", "error", err, "url", remoteURL)
-		return 0, fmt.Errorf("failed to extract project name: %w", err)
-	}
-	
-	a.logger.Debug("Extracted project name", "name", projectName)
-	
-	searchOpts := &gitlab.SearchOptions{}
-	foundProjects, _, err := a.client.Search.Projects(projectName, searchOpts)
-	if err != nil {
-		a.logger.Error("Failed to search projects", "error", err, "project_name", projectName)
-		return 0, fmt.Errorf("failed to search projects: %w", err)
-	}
-	
-	a.logger.Debug("Found projects", "count", len(foundProjects))
-	
-	for _, p := range foundProjects {
-		a.logger.Debug("Checking project", "id", p.ID, "ssh_url", p.SSHURLToRepo, "http_url", p.HTTPURLToRepo)
-		if p.SSHURLToRepo == remoteURL || p.HTTPURLToRepo == remoteURL {
-			a.logger.Info("Found matching project", "id", p.ID, "name", p.Name)
-			return p.ID, nil
-		}
-	}
-	
-	a.logger.Warn("Project not found", "url", remoteURL)
-	return 0, fmt.Errorf("project not found for remote URL: %s", remoteURL)
-}
-
-func (a *App) extractProjectName(remoteURL string) (string, error) {
-	remoteURL = strings.TrimSpace(remoteURL)
-	
-	var projectPath string
-	
-	if strings.HasPrefix(remoteURL, "git@") {
-		parts := strings.Split(remoteURL, ":")
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid SSH URL format")
-		}
-		projectPath = strings.TrimSuffix(parts[1], ".git")
-	} else if strings.HasPrefix(remoteURL, "http://") || strings.HasPrefix(remoteURL, "https://") {
-		u, err := url.Parse(remoteURL)
-		if err != nil {
-			return "", fmt.Errorf("invalid URL: %w", err)
-		}
-		projectPath = strings.TrimPrefix(u.Path, "/")
-		projectPath = strings.TrimSuffix(projectPath, ".git")
-	} else {
-		return "", fmt.Errorf("unsupported remote URL format")
-	}
-	
-	parts := strings.Split(projectPath, "/")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid project path format")
-	}
-	
-	return parts[len(parts)-1], nil
-}
 
 // ListIssuesOptions contains options for listing project issues
 type ListIssuesOptions struct {
@@ -183,9 +121,17 @@ type Label struct {
 	IsProjectLabel         bool   `json:"is_project_label"`
 }
 
-// ListProjectIssues retrieves issues for a given project ID
-func (a *App) ListProjectIssues(projectID int, opts *ListIssuesOptions) ([]Issue, error) {
-	a.logger.Debug("Listing issues for project", "project_id", projectID, "options", opts)
+// ListProjectIssues retrieves issues for a given project path
+func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]Issue, error) {
+	a.logger.Debug("Listing issues for project", "project_path", projectPath, "options", opts)
+	
+	// Get project by path
+	project, _, err := a.client.Projects.GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
 
 	// Set default options if not provided
 	if opts == nil {
@@ -254,9 +200,17 @@ func (a *App) ListProjectIssues(projectID int, opts *ListIssuesOptions) ([]Issue
 	return result, nil
 }
 
-// CreateProjectIssue creates a new issue for a given project ID
-func (a *App) CreateProjectIssue(projectID int, opts *CreateIssueOptions) (*Issue, error) {
-	a.logger.Debug("Creating issue for project", "project_id", projectID, "title", opts.Title)
+// CreateProjectIssue creates a new issue for a given project path
+func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (*Issue, error) {
+	a.logger.Debug("Creating issue for project", "project_path", projectPath, "title", opts.Title)
+	
+	// Get project by path
+	project, _, err := a.client.Projects.GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
 
 	// Validate required options
 	if opts == nil {
@@ -318,9 +272,17 @@ func (a *App) CreateProjectIssue(projectID int, opts *CreateIssueOptions) (*Issu
 	return result, nil
 }
 
-// ListProjectLabels retrieves labels for a given project ID
-func (a *App) ListProjectLabels(projectID int, opts *ListLabelsOptions) ([]Label, error) {
-	a.logger.Debug("Listing labels for project", "project_id", projectID, "options", opts)
+// ListProjectLabels retrieves labels for a given project path
+func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]Label, error) {
+	a.logger.Debug("Listing labels for project", "project_path", projectPath, "options", opts)
+	
+	// Get project by path
+	project, _, err := a.client.Projects.GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
 
 	// Set default options if not provided
 	if opts == nil {

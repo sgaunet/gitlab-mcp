@@ -39,43 +39,12 @@ func main() {
 		server.WithResourceCapabilities(true, false),
 	)
 
-	// Create get_project_id tool
-	getProjectIDTool := mcp.NewTool("get_project_id",
-		mcp.WithDescription("Get GitLab project ID from git remote repository URL"),
-		mcp.WithString("remote_url",
-			mcp.Required(),
-			mcp.Description("Git remote repository URL (SSH or HTTPS)"),
-		),
-	)
-
-	// Add tool handler
-	s.AddTool(getProjectIDTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args := request.GetArguments()
-		debugLogger.Debug("Received MCP tool request", "args", args)
-
-		remoteURL, ok := args["remote_url"].(string)
-		if !ok {
-			debugLogger.Error("remote_url is not a string", "value", args["remote_url"])
-			return mcp.NewToolResultError("remote_url must be a string"), nil
-		}
-
-		debugLogger.Debug("Processing MCP tool request", "remote_url", remoteURL)
-		projectID, err := appInstance.GetProjectID(remoteURL)
-		if err != nil {
-			debugLogger.Error("Failed to get project ID", "error", err, "remote_url", remoteURL)
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to get project ID: %v", err)), nil
-		}
-
-		debugLogger.Info("Successfully retrieved project ID", "id", projectID, "remote_url", remoteURL)
-		return mcp.NewToolResultText(fmt.Sprintf("%d", projectID)), nil
-	})
-
 	// Create list_issues tool
 	listIssuesTool := mcp.NewTool("list_issues",
-		mcp.WithDescription("List issues for a GitLab project by project ID"),
-		mcp.WithNumber("project_id",
+		mcp.WithDescription("List issues for a GitLab project by project path"),
+		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project ID"),
+			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
 		),
 		mcp.WithString("state",
 			mcp.Description("Filter by issue state: opened, closed, or all (default: opened)"),
@@ -93,13 +62,12 @@ func main() {
 		args := request.GetArguments()
 		debugLogger.Debug("Received list_issues tool request", "args", args)
 
-		// Extract project_id
-		projectIDFloat, ok := args["project_id"].(float64)
-		if !ok {
-			debugLogger.Error("project_id is not a number", "value", args["project_id"])
-			return mcp.NewToolResultError("project_id must be a number"), nil
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
 		}
-		projectID := int(projectIDFloat)
 
 		// Extract optional parameters
 		opts := &app.ListIssuesOptions{
@@ -119,12 +87,12 @@ func main() {
 			opts.Limit = int(limitFloat)
 		}
 
-		debugLogger.Debug("Processing list_issues request", "project_id", projectID, "opts", opts)
+		debugLogger.Debug("Processing list_issues request", "project_path", projectPath, "opts", opts)
 
 		// Call the app method
-		issues, err := appInstance.ListProjectIssues(projectID, opts)
+		issues, err := appInstance.ListProjectIssues(projectPath, opts)
 		if err != nil {
-			debugLogger.Error("Failed to list project issues", "error", err, "project_id", projectID)
+			debugLogger.Error("Failed to list project issues", "error", err, "project_path", projectPath)
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to list project issues: %v", err)), nil
 		}
 
@@ -135,16 +103,16 @@ func main() {
 			return mcp.NewToolResultError("Failed to format issues response"), nil
 		}
 
-		debugLogger.Info("Successfully retrieved project issues", "count", len(issues), "project_id", projectID)
+		debugLogger.Info("Successfully retrieved project issues", "count", len(issues), "project_path", projectPath)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	})
 
 	// Create create_issues tool
 	createIssueTool := mcp.NewTool("create_issues",
-		mcp.WithDescription("Create a new issue for a GitLab project by project ID"),
-		mcp.WithNumber("project_id",
+		mcp.WithDescription("Create a new issue for a GitLab project by project path"),
+		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project ID"),
+			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
 		),
 		mcp.WithString("title",
 			mcp.Required(),
@@ -166,13 +134,12 @@ func main() {
 		args := request.GetArguments()
 		debugLogger.Debug("Received create_issues tool request", "args", args)
 
-		// Extract project_id
-		projectIDFloat, ok := args["project_id"].(float64)
-		if !ok {
-			debugLogger.Error("project_id is not a number", "value", args["project_id"])
-			return mcp.NewToolResultError("project_id must be a number"), nil
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
 		}
-		projectID := int(projectIDFloat)
 
 		// Extract title (required)
 		title, ok := args["title"].(string)
@@ -213,12 +180,12 @@ func main() {
 			opts.Assignees = assignees
 		}
 
-		debugLogger.Debug("Processing create_issues request", "project_id", projectID, "title", title)
+		debugLogger.Debug("Processing create_issues request", "project_path", projectPath, "title", title)
 
 		// Call the app method
-		issue, err := appInstance.CreateProjectIssue(projectID, opts)
+		issue, err := appInstance.CreateProjectIssue(projectPath, opts)
 		if err != nil {
-			debugLogger.Error("Failed to create issue", "error", err, "project_id", projectID, "title", title)
+			debugLogger.Error("Failed to create issue", "error", err, "project_path", projectPath, "title", title)
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create issue: %v", err)), nil
 		}
 
@@ -229,16 +196,16 @@ func main() {
 			return mcp.NewToolResultError("Failed to format issue response"), nil
 		}
 
-		debugLogger.Info("Successfully created issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID, "title", issue.Title)
+		debugLogger.Info("Successfully created issue", "id", issue.ID, "iid", issue.IID, "project_path", projectPath, "title", issue.Title)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	})
 
 	// Create list_labels tool
 	listLabelsTool := mcp.NewTool("list_labels",
-		mcp.WithDescription("List labels for a GitLab project by project ID"),
-		mcp.WithNumber("project_id",
+		mcp.WithDescription("List labels for a GitLab project by project path"),
+		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project ID"),
+			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
 		),
 		mcp.WithBoolean("with_counts",
 			mcp.Description("Include issue and merge request counts (default: false)"),
@@ -259,13 +226,12 @@ func main() {
 		args := request.GetArguments()
 		debugLogger.Debug("Received list_labels tool request", "args", args)
 
-		// Extract project_id
-		projectIDFloat, ok := args["project_id"].(float64)
-		if !ok {
-			debugLogger.Error("project_id is not a number", "value", args["project_id"])
-			return mcp.NewToolResultError("project_id must be a number"), nil
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
 		}
-		projectID := int(projectIDFloat)
 
 		// Extract optional parameters
 		opts := &app.ListLabelsOptions{
@@ -290,12 +256,12 @@ func main() {
 			opts.Limit = int(limitFloat)
 		}
 
-		debugLogger.Debug("Processing list_labels request", "project_id", projectID, "opts", opts)
+		debugLogger.Debug("Processing list_labels request", "project_path", projectPath, "opts", opts)
 
 		// Call the app method
-		labels, err := appInstance.ListProjectLabels(projectID, opts)
+		labels, err := appInstance.ListProjectLabels(projectPath, opts)
 		if err != nil {
-			debugLogger.Error("Failed to list project labels", "error", err, "project_id", projectID)
+			debugLogger.Error("Failed to list project labels", "error", err, "project_path", projectPath)
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to list project labels: %v", err)), nil
 		}
 
@@ -306,7 +272,7 @@ func main() {
 			return mcp.NewToolResultError("Failed to format labels response"), nil
 		}
 
-		debugLogger.Info("Successfully retrieved project labels", "count", len(labels), "project_id", projectID)
+		debugLogger.Info("Successfully retrieved project labels", "count", len(labels), "project_path", projectPath)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	})
 
