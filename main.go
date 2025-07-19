@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -13,7 +14,73 @@ import (
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
 )
 
+// Version information injected at build time
+var version = "dev"
+
+func printHelp() {
+	fmt.Printf(`GitLab MCP Server %s
+
+A Model Context Protocol (MCP) server that provides GitLab integration tools for Claude Code.
+
+USAGE:
+    gitlab-mcp [OPTIONS]
+
+OPTIONS:
+    -h, --help     Show this help message
+    -v, --version  Show version information
+
+ENVIRONMENT VARIABLES:
+    GITLAB_TOKEN   GitLab API personal access token (required)
+    GITLAB_URI     GitLab instance URI (default: https://gitlab.com/)
+
+DESCRIPTION:
+    This MCP server provides the following tools for GitLab integration:
+    
+    • list_issues     - List issues for a GitLab project
+    • create_issues   - Create new issues with metadata
+    • update_issues   - Update existing issues
+    • list_labels     - List project labels with filtering
+    
+    The server communicates via JSON-RPC 2.0 over stdin/stdout and is designed
+    to be used with Claude Code's MCP architecture.
+
+EXAMPLES:
+    # Start the MCP server (typically called by Claude Code)
+    gitlab-mcp
+    
+    # Show help
+    gitlab-mcp -h
+    
+    # Show version
+    gitlab-mcp -v
+
+For more information, visit: https://github.com/sgaunet/gitlab-mcp
+`, version)
+}
+
 func main() {
+	// Parse command line flags
+	var (
+		showHelp    = flag.Bool("h", false, "Show help message")
+		showHelpLong = flag.Bool("help", false, "Show help message")
+		showVersion = flag.Bool("v", false, "Show version information") 
+		showVersionLong = flag.Bool("version", false, "Show version information")
+	)
+	
+	flag.Parse()
+	
+	// Handle help flags
+	if *showHelp || *showHelpLong {
+		printHelp()
+		os.Exit(0)
+	}
+	
+	// Handle version flags
+	if *showVersion || *showVersionLong {
+		fmt.Printf("%s\n", version)
+		os.Exit(0)
+	}
+
 	// Initialize the app
 	appInstance, err := app.New()
 	if err != nil {
@@ -24,7 +91,7 @@ func main() {
 	debugLogger := logger.NewLogger("debug")
 	appInstance.SetLogger(debugLogger)
 	
-	debugLogger.Info("Starting GitLab MCP Server", "version", "1.0.0")
+	debugLogger.Info("Starting GitLab MCP Server", "version", version)
 
 	// Validate connection
 	if err := appInstance.ValidateConnection(); err != nil {
@@ -34,7 +101,7 @@ func main() {
 	// Create MCP server
 	s := server.NewMCPServer(
 		"GitLab MCP Server",
-		"1.0.0",
+		version,
 		server.WithToolCapabilities(true),
 		server.WithResourceCapabilities(true, false),
 	)
