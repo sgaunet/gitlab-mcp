@@ -18,7 +18,6 @@ tasks:
   linter:
     desc: "Run linter"
     cmds:
-      - go generate ./...
       - golangci-lint run
 
   # image:

@@ -2,7 +2,6 @@
 package logger
 
 import (
-	"io"
 	"log/slog"
 	"os"
 )
@@ -43,9 +42,5 @@ func NewLogger(logLevel string) *slog.Logger {
 
 // NoLogger creates a logger that does not log anything.
 func NoLogger() *slog.Logger {
-	noLogger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
-		Level:     slog.LevelDebug,
-		AddSource: false,
-	}))
-	return noLogger
+	return slog.New(slog.DiscardHandler)
 }

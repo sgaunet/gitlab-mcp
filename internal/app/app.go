@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -9,6 +10,23 @@ import (
 
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
 	"gitlab.com/gitlab-org/api/client-go"
+)
+
+// Constants for default values.
+const (
+	defaultGitLabURI    = "https://gitlab.com/"
+	defaultStateOpened  = "opened"
+	maxIssuesPerPage    = 100
+	maxLabelsPerPage    = 100
+)
+
+// Error variables for static errors.
+var (
+	ErrGitLabTokenRequired   = errors.New("GITLAB_TOKEN environment variable is required")
+	ErrCreateOptionsRequired = errors.New("create issue options are required")
+	ErrIssueTitleRequired    = errors.New("issue title is required")
+	ErrInvalidIssueIID       = errors.New("issue IID must be a positive integer")
+	ErrUpdateOptionsRequired = errors.New("update issue options are required")
 )
 
 type App struct {
@@ -21,12 +39,12 @@ type App struct {
 func New() (*App, error) {
 	token := os.Getenv("GITLAB_TOKEN")
 	if token == "" {
-		return nil, fmt.Errorf("GITLAB_TOKEN environment variable is required")
+		return nil, ErrGitLabTokenRequired
 	}
 
 	uri := os.Getenv("GITLAB_URI")
 	if uri == "" {
-		uri = "https://gitlab.com/"
+		uri = defaultGitLabURI
 	}
 
 	if _, err := url.Parse(uri); err != nil {
@@ -53,7 +71,7 @@ func New() (*App, error) {
 	}, nil
 }
 
-// NewWithClient creates a new App instance with an injected GitLabClient (for testing)
+// NewWithClient creates a new App instance with an injected GitLabClient (for testing).
 func NewWithClient(token, uri string, client GitLabClient) *App {
 	return &App{
 		GitLabToken: token,
@@ -64,7 +82,7 @@ func NewWithClient(token, uri string, client GitLabClient) *App {
 }
 
 func (a *App) GetAPIURL() string {
-	return fmt.Sprintf("%s/api/v4", a.GitLabURI)
+	return a.GitLabURI + "/api/v4"
 }
 
 func (a *App) SetLogger(l *slog.Logger) {
@@ -81,14 +99,14 @@ func (a *App) ValidateConnection() error {
 }
 
 
-// ListIssuesOptions contains options for listing project issues
+// ListIssuesOptions contains options for listing project issues.
 type ListIssuesOptions struct {
 	State  string
 	Labels string
 	Limit  int
 }
 
-// CreateIssueOptions contains options for creating a project issue
+// CreateIssueOptions contains options for creating a project issue.
 type CreateIssueOptions struct {
 	Title       string
 	Description string
@@ -96,7 +114,7 @@ type CreateIssueOptions struct {
 	Assignees   []int
 }
 
-// UpdateIssueOptions contains options for updating a project issue
+// UpdateIssueOptions contains options for updating a project issue.
 type UpdateIssueOptions struct {
 	Title       string
 	Description string
@@ -105,7 +123,7 @@ type UpdateIssueOptions struct {
 	Assignees   []int
 }
 
-// ListLabelsOptions contains options for listing project labels
+// ListLabelsOptions contains options for listing project labels.
 type ListLabelsOptions struct {
 	WithCounts            bool
 	IncludeAncestorGroups bool
@@ -113,7 +131,7 @@ type ListLabelsOptions struct {
 	Limit                 int
 }
 
-// Issue represents a GitLab issue
+// Issue represents a GitLab issue.
 type Issue struct {
 	ID          int                    `json:"id"`
 	IID         int                    `json:"iid"`
@@ -126,7 +144,7 @@ type Issue struct {
 	UpdatedAt   string                 `json:"updated_at"`
 }
 
-// Label represents a GitLab label
+// Label represents a GitLab label.
 type Label struct {
 	ID                     int    `json:"id"`
 	Name                   string `json:"name"`
@@ -141,7 +159,7 @@ type Label struct {
 	IsProjectLabel         bool   `json:"is_project_label"`
 }
 
-// parseLabels splits comma-separated labels and trims spaces
+// parseLabels splits comma-separated labels and trims spaces.
 func parseLabels(labels string) []string {
 	parts := strings.Split(labels, ",")
 	result := make([]string, 0, len(parts))
@@ -154,7 +172,49 @@ func parseLabels(labels string) []string {
 	return result
 }
 
-// ListProjectIssues retrieves issues for a given project path
+// convertGitLabIssue converts a GitLab issue to our Issue struct.
+func convertGitLabIssue(issue *gitlab.Issue) Issue {
+	// Convert assignees to the expected format
+	assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
+	for _, assignee := range issue.Assignees {
+		assignees = append(assignees, map[string]interface{}{
+			"id":       assignee.ID,
+			"username": assignee.Username,
+			"name":     assignee.Name,
+		})
+	}
+
+	return Issue{
+		ID:          issue.ID,
+		IID:         issue.IID,
+		Title:       issue.Title,
+		Description: issue.Description,
+		State:       issue.State,
+		Labels:      issue.Labels,
+		Assignees:   assignees,
+		CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+// normalizeListIssuesOptions sets default values for list issues options.
+func normalizeListIssuesOptions(opts *ListIssuesOptions) *ListIssuesOptions {
+	if opts == nil {
+		opts = &ListIssuesOptions{}
+	}
+	if opts.State == "" {
+		opts.State = defaultStateOpened
+	}
+	if opts.Limit == 0 {
+		opts.Limit = maxIssuesPerPage
+	}
+	if opts.Limit > maxIssuesPerPage {
+		opts.Limit = maxIssuesPerPage
+	}
+	return opts
+}
+
+// ListProjectIssues retrieves issues for a given project path.
 func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]Issue, error) {
 	a.logger.Debug("Listing issues for project", "project_path", projectPath, "options", opts)
 	
@@ -166,24 +226,8 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	}
 	projectID := project.ID
 
-	// Set default options if not provided
-	if opts == nil {
-		opts = &ListIssuesOptions{
-			State: "opened",
-			Limit: 100,
-		}
-	}
-
-	// Set defaults for individual options
-	if opts.State == "" {
-		opts.State = "opened"
-	}
-	if opts.Limit == 0 {
-		opts.Limit = 100
-	}
-	if opts.Limit > 100 {
-		opts.Limit = 100 // Cap at 100 issues
-	}
+	// Normalize options
+	opts = normalizeListIssuesOptions(opts)
 
 	// Create GitLab API options
 	listOpts := &gitlab.ListProjectIssuesOptions{
@@ -213,41 +257,21 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	// Convert GitLab issues to our Issue struct
 	result := make([]Issue, 0, len(issues))
 	for _, issue := range issues {
-		// Convert assignees to the expected format
-		assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
-		for _, assignee := range issue.Assignees {
-			assignees = append(assignees, map[string]interface{}{
-				"id":       assignee.ID,
-				"username": assignee.Username,
-				"name":     assignee.Name,
-			})
-		}
-
-		result = append(result, Issue{
-			ID:          issue.ID,
-			IID:         issue.IID,
-			Title:       issue.Title,
-			Description: issue.Description,
-			State:       issue.State,
-			Labels:      issue.Labels,
-			Assignees:   assignees,
-			CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-		})
+		result = append(result, convertGitLabIssue(issue))
 	}
 
 	a.logger.Info("Successfully retrieved project issues", "count", len(result), "project_id", projectID)
 	return result, nil
 }
 
-// CreateProjectIssue creates a new issue for a given project path
+// CreateProjectIssue creates a new issue for a given project path.
 func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (*Issue, error) {
 	// Validate required options
 	if opts == nil {
-		return nil, fmt.Errorf("create issue options are required")
+		return nil, ErrCreateOptionsRequired
 	}
 	if opts.Title == "" {
-		return nil, fmt.Errorf("issue title is required")
+		return nil, ErrIssueTitleRequired
 	}
 	
 	a.logger.Debug("Creating issue for project", "project_path", projectPath, "title", opts.Title)
@@ -286,33 +310,16 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 
 	a.logger.Debug("Created issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
 
-	// Convert assignees to the expected format
-	assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
-	for _, assignee := range issue.Assignees {
-		assignees = append(assignees, map[string]interface{}{
-			"id":       assignee.ID,
-			"username": assignee.Username,
-			"name":     assignee.Name,
-		})
-	}
-
-	result := &Issue{
-		ID:          issue.ID,
-		IID:         issue.IID,
-		Title:       issue.Title,
-		Description: issue.Description,
-		State:       issue.State,
-		Labels:      issue.Labels,
-		Assignees:   assignees,
-		CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-
-	a.logger.Info("Successfully created issue", "id", result.ID, "iid", result.IID, "project_id", projectID, "title", result.Title)
-	return result, nil
+	result := convertGitLabIssue(issue)
+	a.logger.Info("Successfully created issue", 
+		"id", result.ID, 
+		"iid", result.IID, 
+		"project_id", projectID, 
+		"title", result.Title)
+	return &result, nil
 }
 
-// ListProjectLabels retrieves labels for a given project path
+// ListProjectLabels retrieves labels for a given project path.
 func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]Label, error) {
 	a.logger.Debug("Listing labels for project", "project_path", projectPath, "options", opts)
 	
@@ -329,16 +336,16 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 		opts = &ListLabelsOptions{
 			WithCounts:            false,
 			IncludeAncestorGroups: false,
-			Limit:                 100,
+			Limit:                 maxLabelsPerPage,
 		}
 	}
 
 	// Set defaults for individual options
 	if opts.Limit == 0 {
-		opts.Limit = 100
+		opts.Limit = maxLabelsPerPage
 	}
-	if opts.Limit > 100 {
-		opts.Limit = 100 // Cap at 100 labels
+	if opts.Limit > maxLabelsPerPage {
+		opts.Limit = maxLabelsPerPage // Cap at max labels per page
 	}
 
 	// Create GitLab API options
@@ -384,14 +391,14 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 	return result, nil
 }
 
-// UpdateProjectIssue updates an existing issue for a given project path
+// UpdateProjectIssue updates an existing issue for a given project path.
 func (a *App) UpdateProjectIssue(projectPath string, issueIID int, opts *UpdateIssueOptions) (*Issue, error) {
 	// Validate required parameters
 	if issueIID <= 0 {
-		return nil, fmt.Errorf("issue IID must be a positive integer")
+		return nil, ErrInvalidIssueIID
 	}
 	if opts == nil {
-		return nil, fmt.Errorf("update issue options are required")
+		return nil, ErrUpdateOptionsRequired
 	}
 	
 	a.logger.Debug("Updating issue for project", "project_path", projectPath, "issue_iid", issueIID)
@@ -439,28 +446,11 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int, opts *UpdateI
 
 	a.logger.Debug("Updated issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
 
-	// Convert assignees to the expected format
-	assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
-	for _, assignee := range issue.Assignees {
-		assignees = append(assignees, map[string]interface{}{
-			"id":       assignee.ID,
-			"username": assignee.Username,
-			"name":     assignee.Name,
-		})
-	}
-
-	result := &Issue{
-		ID:          issue.ID,
-		IID:         issue.IID,
-		Title:       issue.Title,
-		Description: issue.Description,
-		State:       issue.State,
-		Labels:      issue.Labels,
-		Assignees:   assignees,
-		CreatedAt:   issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:   issue.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-
-	a.logger.Info("Successfully updated issue", "id", result.ID, "iid", result.IID, "project_id", projectID, "title", result.Title)
-	return result, nil
+	result := convertGitLabIssue(issue)
+	a.logger.Info("Successfully updated issue", 
+		"id", result.ID, 
+		"iid", result.IID, 
+		"project_id", projectID, 
+		"title", result.Title)
+	return &result, nil
 }
