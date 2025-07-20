@@ -24,7 +24,7 @@ jobs:
           go mod download
           go test ./internal/... -coverpkg=./internal/... -coverprofile=profile.cov
           #echo -n "Total Coverage{{":"}} "
-          total=$(go tool cover -func profile.cov | grep '^total:' | awk '{print $3}') | sed "s/%//"
+          total=$(go tool cover -func profile.cov | grep '^total:' | awk '{print $3}' | sed 's/%//')
           rm -f profile.cov
           echo "COVERAGE_VALUE=${total}" >> $GITHUB_ENV
 
