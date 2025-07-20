@@ -142,6 +142,106 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "successful list with label filter",
+			opts: &ListIssuesOptions{State: "opened", Labels: "bug", Limit: 100},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
+				client.On("Projects").Return(projects)
+				client.On("Issues").Return(issues)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedLabels := gitlab.LabelOptions([]string{"bug"})
+				expectedOpts := &gitlab.ListProjectIssuesOptions{
+					State:       gitlab.Ptr("opened"),
+					Labels:      &expectedLabels,
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+				
+				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+					[]*gitlab.Issue{
+						{
+							ID:          1,
+							IID:         10,
+							Title:       "Bug Issue",
+							Description: "Bug description",
+							State:       "opened",
+							Labels:      []string{"bug"},
+							Assignees:   []*gitlab.IssueAssignee{},
+							CreatedAt:   &testTime,
+							UpdatedAt:   &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []Issue{
+				{
+					ID:          1,
+					IID:         10,
+					Title:       "Bug Issue",
+					Description: "Bug description",
+					State:       "opened",
+					Labels:      []string{"bug"},
+					Assignees:   []map[string]interface{}{},
+					CreatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
+					UpdatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful list with multiple labels",
+			opts: &ListIssuesOptions{State: "opened", Labels: "bug, priority-high, needs-review", Limit: 50},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
+				client.On("Projects").Return(projects)
+				client.On("Issues").Return(issues)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedLabels := gitlab.LabelOptions([]string{"bug", "priority-high", "needs-review"})
+				expectedOpts := &gitlab.ListProjectIssuesOptions{
+					State:       gitlab.Ptr("opened"),
+					Labels:      &expectedLabels,
+					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
+				}
+				
+				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+					[]*gitlab.Issue{
+						{
+							ID:          2,
+							IID:         20,
+							Title:       "Critical Bug",
+							Description: "High priority bug needing review",
+							State:       "opened",
+							Labels:      []string{"bug", "priority-high", "needs-review"},
+							Assignees:   []*gitlab.IssueAssignee{},
+							CreatedAt:   &testTime,
+							UpdatedAt:   &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []Issue{
+				{
+					ID:          2,
+					IID:         20,
+					Title:       "Critical Bug",
+					Description: "High priority bug needing review",
+					State:       "opened",
+					Labels:      []string{"bug", "priority-high", "needs-review"},
+					Assignees:   []map[string]interface{}{},
+					CreatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
+					UpdatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "project not found",
 			opts: nil,
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
@@ -522,6 +622,52 @@ func TestApp_SetLogger(t *testing.T) {
 	app.SetLogger(logger)
 	
 	assert.Equal(t, logger, app.logger)
+}
+
+func TestParseLabels(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		want   []string
+	}{
+		{
+			name:  "single label",
+			input: "bug",
+			want:  []string{"bug"},
+		},
+		{
+			name:  "multiple labels",
+			input: "bug,priority-high,needs-review",
+			want:  []string{"bug", "priority-high", "needs-review"},
+		},
+		{
+			name:  "labels with spaces",
+			input: " bug , priority-high , needs-review ",
+			want:  []string{"bug", "priority-high", "needs-review"},
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  []string{},
+		},
+		{
+			name:  "only commas",
+			input: ",,,",
+			want:  []string{},
+		},
+		{
+			name:  "labels with empty elements",
+			input: "bug,,priority-high,,",
+			want:  []string{"bug", "priority-high"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseLabels(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestApp_UpdateProjectIssue(t *testing.T) {

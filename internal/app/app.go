@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
 	"gitlab.com/gitlab-org/api/client-go"
@@ -140,6 +141,19 @@ type Label struct {
 	IsProjectLabel         bool   `json:"is_project_label"`
 }
 
+// parseLabels splits comma-separated labels and trims spaces
+func parseLabels(labels string) []string {
+	parts := strings.Split(labels, ",")
+	result := make([]string, 0, len(parts))
+	for _, label := range parts {
+		trimmed := strings.TrimSpace(label)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 // ListProjectIssues retrieves issues for a given project path
 func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]Issue, error) {
 	a.logger.Debug("Listing issues for project", "project_path", projectPath, "options", opts)
@@ -177,8 +191,15 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 		ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
 	}
 
-	// TODO: Add labels filter support once we understand the correct type
-	// For now, labels filtering is not implemented
+	// Add labels filter if provided
+	if opts.Labels != "" {
+		// Split comma-separated labels and trim spaces
+		labelList := parseLabels(opts.Labels)
+		if len(labelList) > 0 {
+			labels := gitlab.LabelOptions(labelList)
+			listOpts.Labels = &labels
+		}
+	}
 
 	// Call GitLab API
 	issues, _, err := a.client.Issues().ListProjectIssues(projectID, listOpts)
