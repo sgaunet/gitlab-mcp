@@ -27,6 +27,7 @@ var (
 	ErrIssueTitleRequired    = errors.New("issue title is required")
 	ErrInvalidIssueIID       = errors.New("issue IID must be a positive integer")
 	ErrUpdateOptionsRequired = errors.New("update issue options are required")
+	ErrNoteBodyRequired      = errors.New("note body is required")
 )
 
 type App struct {
@@ -131,6 +132,11 @@ type ListLabelsOptions struct {
 	Limit                 int
 }
 
+// AddIssueNoteOptions contains options for adding a note to an issue.
+type AddIssueNoteOptions struct {
+	Body string
+}
+
 // Issue represents a GitLab issue.
 type Issue struct {
 	ID          int                    `json:"id"`
@@ -157,6 +163,17 @@ type Label struct {
 	Subscribed             bool   `json:"subscribed"`
 	Priority               int    `json:"priority"`
 	IsProjectLabel         bool   `json:"is_project_label"`
+}
+
+// Note represents a GitLab note/comment.
+type Note struct {
+	ID        int                      `json:"id"`
+	Body      string                   `json:"body"`
+	Author    map[string]interface{}   `json:"author"`
+	CreatedAt string                   `json:"created_at"`
+	UpdatedAt string                   `json:"updated_at"`
+	System    bool                     `json:"system"`
+	Noteable  map[string]interface{}   `json:"noteable"`
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -453,4 +470,72 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int, opts *UpdateI
 		"project_id", projectID, 
 		"title", result.Title)
 	return &result, nil
+}
+
+// AddIssueNote adds a note/comment to an existing issue.
+func (a *App) AddIssueNote(projectPath string, issueIID int, opts *AddIssueNoteOptions) (*Note, error) {
+	// Validate required parameters
+	if issueIID <= 0 {
+		return nil, ErrInvalidIssueIID
+	}
+	if opts == nil || opts.Body == "" {
+		return nil, ErrNoteBodyRequired
+	}
+	
+	a.logger.Debug("Adding note to issue", "project_path", projectPath, "issue_iid", issueIID)
+	
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
+
+	// Create GitLab API options
+	createOpts := &gitlab.CreateIssueNoteOptions{
+		Body: &opts.Body,
+	}
+
+	// Call GitLab API
+	note, _, err := a.client.Notes().CreateIssueNote(projectID, issueIID, createOpts)
+	if err != nil {
+		a.logger.Error("Failed to create issue note", "error", err, "project_id", projectID, "issue_iid", issueIID)
+		return nil, fmt.Errorf("failed to create issue note: %w", err)
+	}
+
+	a.logger.Debug("Created issue note", "id", note.ID, "project_id", projectID, "issue_iid", issueIID)
+
+	// Convert GitLab note to our Note struct
+	result := &Note{
+		ID:        note.ID,
+		Body:      note.Body,
+		System:    note.System,
+		CreatedAt: note.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: note.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+
+	// Convert author information
+	if note.Author.ID != 0 {
+		result.Author = map[string]interface{}{
+			"id":       note.Author.ID,
+			"username": note.Author.Username,
+			"name":     note.Author.Name,
+		}
+	}
+
+	// Convert noteable information
+	if note.NoteableID != 0 {
+		result.Noteable = map[string]interface{}{
+			"id":   note.NoteableID,
+			"iid":  note.NoteableIID,
+			"type": note.NoteableType,
+		}
+	}
+
+	a.logger.Info("Successfully added note to issue", 
+		"note_id", result.ID, 
+		"project_id", projectID, 
+		"issue_iid", issueIID)
+	return result, nil
 }

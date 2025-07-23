@@ -870,3 +870,151 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 		})
 	}
 }
+func TestApp_AddIssueNote(t *testing.T) {
+	testTime := time.Now()
+	
+	tests := []struct {
+		name    string
+		opts    *AddIssueNoteOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockNotesService)
+		want    *Note
+		wantErr bool
+	}{
+		{
+			name: "successful note creation",
+			opts: &AddIssueNoteOptions{Body: "This is a test note"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
+				client.On("Projects").Return(projects)
+				client.On("Notes").Return(notes)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.CreateIssueNoteOptions{
+					Body: gitlab.Ptr("This is a test note"),
+				}
+				
+				notes.On("CreateIssueNote", 123, 10, expectedOpts).Return(
+					&gitlab.Note{
+						ID:     1,
+						Body:   "This is a test note",
+						System: false,
+						Author: gitlab.NoteAuthor{ID: 1, Username: "testuser", Name: "Test User"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+						NoteableID:   50,
+						NoteableIID:  10,
+						NoteableType: "Issue",
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &Note{
+				ID:        1,
+				Body:      "This is a test note",
+				System:    false,
+				Author:    map[string]interface{}{"id": 1, "username": "testuser", "name": "Test User"},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				Noteable:  map[string]interface{}{"id": 50, "iid": 10, "type": "Issue"},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nil options",
+			opts:    nil,
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockNotesService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "empty body",
+			opts:    &AddIssueNoteOptions{Body: ""},
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockNotesService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "project not found",
+			opts: &AddIssueNoteOptions{Body: "Test note"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "invalid/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "create note API error",
+			opts: &AddIssueNoteOptions{Body: "Test note"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
+				client.On("Projects").Return(projects)
+				client.On("Notes").Return(notes)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.CreateIssueNoteOptions{
+					Body: gitlab.Ptr("Test note"),
+				}
+				
+				notes.On("CreateIssueNote", 123, 10, expectedOpts).Return(
+					(*gitlab.Note)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockNotes := &MockNotesService{}
+			
+			tt.setup(mockClient, mockProjects, mockNotes)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			
+			projectPath := "test/project"
+			if tt.name == "project not found" {
+				projectPath = "invalid/project"
+			}
+			got, err := app.AddIssueNote(projectPath, 10, tt.opts)
+			
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockNotes.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_AddIssueNote_InvalidIssueIID(t *testing.T) {
+	app := NewWithClient("token", "https://gitlab.com/", &MockGitLabClient{})
+	opts := &AddIssueNoteOptions{Body: "Test note"}
+	
+	// Test negative IID
+	got, err := app.AddIssueNote("test/project", -1, opts)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidIssueIID, err)
+	assert.Nil(t, got)
+	
+	// Test zero IID
+	got, err = app.AddIssueNote("test/project", 0, opts)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidIssueIID, err)
+	assert.Nil(t, got)
+}

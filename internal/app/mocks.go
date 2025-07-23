@@ -38,6 +38,12 @@ func (m *MockGitLabClient) Users() UsersService {
 	return result
 }
 
+func (m *MockGitLabClient) Notes() NotesService {
+	args := m.Called()
+	result, _ := args.Get(0).(NotesService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -114,4 +120,20 @@ func (m *MockUsersService) CurrentUser() (*gitlab.User, *gitlab.Response, error)
 	user, _ := args.Get(0).(*gitlab.User)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return user, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockNotesService is a mock implementation of NotesService.
+type MockNotesService struct {
+	mock.Mock
+}
+
+func (m *MockNotesService) CreateIssueNote(
+	pid interface{}, 
+	issue int, 
+	opt *gitlab.CreateIssueNoteOptions,
+) (*gitlab.Note, *gitlab.Response, error) {
+	args := m.Called(pid, issue, opt)
+	note, _ := args.Get(0).(*gitlab.Note)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return note, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

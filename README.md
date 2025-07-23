@@ -17,6 +17,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 - **Create Issues**: Create new issues with title, description, labels, and assignees
 - **Update Issues**: Update existing issues (title, description, state, labels, assignees)
 - **List Labels**: List project labels with optional filtering and counts
+- **Add Issue Notes**: Add comments/notes to existing issues
 - Direct project path access - no need to resolve project IDs
 - Compatible with Claude Code's MCP architecture
 
@@ -173,6 +174,34 @@ Returns a JSON array of label objects, each containing:
 - `open_issues_count`: Number of open issues (if with_counts=true)
 - `closed_issues_count`: Number of closed issues (if with_counts=true)
 - `open_merge_requests_count`: Number of open merge requests (if with_counts=true)
+
+### add_issue_note
+
+Adds a note/comment to an existing issue for a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `issue_iid` (number, required): Issue internal ID (IID) to add note to
+- `body` (string, required): Note/comment body text
+
+**Examples:**
+```
+Add a comment "This looks good to me!" to issue #5 for project namespace/project_name
+```
+
+```
+Add a note "Fixed in latest commit" to issue #12 for project namespace/project_name
+```
+
+**Response Format:**
+Returns a JSON object of the created note containing:
+- `id`: Note ID
+- `body`: Note body text
+- `author`: Author object with id, username, and name
+- `created_at`: Creation timestamp
+- `updated_at`: Last update timestamp
+- `system`: Boolean indicating if this is a system-generated note
+- `noteable`: Object containing information about the issue this note belongs to
 
 ## Development
 

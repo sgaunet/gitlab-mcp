@@ -38,6 +38,11 @@ func (g *GitLabClientWrapper) Users() UsersService {
 	return &UsersServiceWrapper{service: g.client.Users}
 }
 
+// Notes returns the Notes service.
+func (g *GitLabClientWrapper) Notes() NotesService {
+	return &NotesServiceWrapper{service: g.client.Notes}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -120,4 +125,21 @@ func (u *UsersServiceWrapper) CurrentUser() (*gitlab.User, *gitlab.Response, err
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return user, resp, nil
+}
+
+// NotesServiceWrapper wraps the real Notes service.
+type NotesServiceWrapper struct {
+	service gitlab.NotesServiceInterface
+}
+
+func (n *NotesServiceWrapper) CreateIssueNote(
+	pid interface{}, 
+	issue int, 
+	opt *gitlab.CreateIssueNoteOptions,
+) (*gitlab.Note, *gitlab.Response, error) {
+	note, resp, err := n.service.CreateIssueNote(pid, issue, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return note, resp, nil
 }
