@@ -524,7 +524,10 @@ func handleAddIssueNoteRequest(
 			return mcp.NewToolResultError("Failed to format note response"), nil
 		}
 
-		debugLogger.Info("Successfully added note to issue", "note_id", note.ID, "project_path", projectPath, "issue_iid", issueIID)
+		debugLogger.Info("Successfully added note to issue",
+			"note_id", note.ID,
+			"project_path", projectPath,
+			"issue_iid", issueIID)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	}
 }
