@@ -26,10 +26,16 @@ type UsersService interface {
 	CurrentUser() (*gitlab.User, *gitlab.Response, error)
 }
 
+// NotesService interface for GitLab Notes operations.
+type NotesService interface {
+	CreateIssueNote(pid interface{}, issue int, opt *gitlab.CreateIssueNoteOptions) (*gitlab.Note, *gitlab.Response, error)
+}
+
 // GitLabClient interface that provides access to all GitLab services.
 type GitLabClient interface {
 	Projects() ProjectsService
 	Issues() IssuesService
 	Labels() LabelsService
 	Users() UsersService
+	Notes() NotesService
 }

@@ -451,6 +451,84 @@ func extractListLabelsOptions(args map[string]interface{}) *app.ListLabelsOption
 	return opts
 }
 
+// setupAddIssueNoteTool creates and registers the add_issue_note tool.
+func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	addIssueNoteTool := mcp.NewTool("add_issue_note",
+		mcp.WithDescription("Add a note/comment to an existing issue for a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("issue_iid",
+			mcp.Required(),
+			mcp.Description("Issue internal ID (IID) to add note to"),
+		),
+		mcp.WithString("body",
+			mcp.Required(),
+			mcp.Description("Note/comment body text"),
+		),
+	)
+
+	s.AddTool(addIssueNoteTool, handleAddIssueNoteRequest(appInstance, debugLogger))
+}
+
+// handleAddIssueNoteRequest handles the add_issue_note tool request.
+func handleAddIssueNoteRequest(
+	appInstance *app.App, 
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received add_issue_note tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract issue_iid (required)
+		issueIIDFloat, ok := args["issue_iid"].(float64)
+		if !ok {
+			debugLogger.Error("issue_iid is missing or not a number", "value", args["issue_iid"])
+			return mcp.NewToolResultError("issue_iid must be a number"), nil
+		}
+		issueIID := int(issueIIDFloat)
+
+		// Extract body (required)
+		body, ok := args["body"].(string)
+		if !ok || body == "" {
+			debugLogger.Error("body is missing or not a string", "value", args["body"])
+			return mcp.NewToolResultError("body must be a non-empty string"), nil
+		}
+
+		// Create options
+		opts := &app.AddIssueNoteOptions{
+			Body: body,
+		}
+
+		debugLogger.Debug("Processing add_issue_note request", "project_path", projectPath, "issue_iid", issueIID)
+
+		// Call the app method
+		note, err := appInstance.AddIssueNote(projectPath, issueIID, opts)
+		if err != nil {
+			debugLogger.Error("Failed to add issue note", "error", err, "project_path", projectPath, "issue_iid", issueIID)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to add issue note: %v", err)), nil
+		}
+
+		// Convert note to JSON
+		jsonData, err := json.Marshal(note)
+		if err != nil {
+			debugLogger.Error("Failed to marshal note to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format note response"), nil
+		}
+
+		debugLogger.Info("Successfully added note to issue", "note_id", note.ID, "project_path", projectPath, "issue_iid", issueIID)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
 func printHelp() {
 	fmt.Printf(`GitLab MCP Server %s
 
@@ -474,6 +552,7 @@ DESCRIPTION:
     • create_issues   - Create new issues with metadata
     • update_issues   - Update existing issues
     • list_labels     - List project labels with filtering
+    • add_issue_note  - Add notes/comments to existing issues
     
     The server communicates via JSON-RPC 2.0 over stdin/stdout and is designed
     to be used with Claude Code's MCP architecture.
@@ -551,6 +630,9 @@ func main() {
 
 	// Create and register list_labels tool
 	setupListLabelsTool(s, appInstance, debugLogger)
+
+	// Create and register add_issue_note tool
+	setupAddIssueNoteTool(s, appInstance, debugLogger)
 
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {
