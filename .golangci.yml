@@ -21,3 +21,4 @@ linters:
     - noinlineerr
     - revive
     - ireturn
+    - misspell
