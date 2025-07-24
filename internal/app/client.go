@@ -43,6 +43,16 @@ func (g *GitLabClientWrapper) Notes() NotesService {
 	return &NotesServiceWrapper{service: g.client.Notes}
 }
 
+// MergeRequests returns the MergeRequests service.
+func (g *GitLabClientWrapper) MergeRequests() MergeRequestsService {
+	return &MergeRequestsServiceWrapper{service: g.client.MergeRequests}
+}
+
+// Milestones returns the Milestones service.
+func (g *GitLabClientWrapper) Milestones() MilestonesService {
+	return &MilestonesServiceWrapper{service: g.client.Milestones}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -127,6 +137,14 @@ func (u *UsersServiceWrapper) CurrentUser() (*gitlab.User, *gitlab.Response, err
 	return user, resp, nil
 }
 
+func (u *UsersServiceWrapper) ListUsers(opt *gitlab.ListUsersOptions) ([]*gitlab.User, *gitlab.Response, error) {
+	users, resp, err := u.service.ListUsers(opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return users, resp, nil
+}
+
 // NotesServiceWrapper wraps the real Notes service.
 type NotesServiceWrapper struct {
 	service gitlab.NotesServiceInterface
@@ -142,4 +160,36 @@ func (n *NotesServiceWrapper) CreateIssueNote(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return note, resp, nil
+}
+
+// MergeRequestsServiceWrapper wraps the real MergeRequests service.
+type MergeRequestsServiceWrapper struct {
+	service gitlab.MergeRequestsServiceInterface
+}
+
+func (m *MergeRequestsServiceWrapper) CreateMergeRequest(
+	pid interface{}, 
+	opt *gitlab.CreateMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	mr, resp, err := m.service.CreateMergeRequest(pid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return mr, resp, nil
+}
+
+// MilestonesServiceWrapper wraps the real Milestones service.
+type MilestonesServiceWrapper struct {
+	service gitlab.MilestonesServiceInterface
+}
+
+func (m *MilestonesServiceWrapper) ListMilestones(
+	pid interface{}, 
+	opt *gitlab.ListMilestonesOptions,
+) ([]*gitlab.Milestone, *gitlab.Response, error) {
+	milestones, resp, err := m.service.ListMilestones(pid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return milestones, resp, nil
 }

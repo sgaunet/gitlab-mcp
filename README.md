@@ -18,6 +18,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 - **Update Issues**: Update existing issues (title, description, state, labels, assignees)
 - **List Labels**: List project labels with optional filtering and counts
 - **Add Issue Notes**: Add comments/notes to existing issues
+- **Create Merge Requests**: Create new merge requests with source/target branches, title, description, assignees, reviewers, and labels
 - Direct project path access - no need to resolve project IDs
 - Compatible with Claude Code's MCP architecture
 
@@ -202,6 +203,55 @@ Returns a JSON object of the created note containing:
 - `updated_at`: Last update timestamp
 - `system`: Boolean indicating if this is a system-generated note
 - `noteable`: Object containing information about the issue this note belongs to
+
+### create_merge_request
+
+Creates a new merge request for a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `source_branch` (string, required): Source branch name
+- `target_branch` (string, required): Target branch name
+- `title` (string, required): MR title
+- `description` (string, optional): MR description
+- `assignee_ids` (array, optional): Array of assignee user IDs
+- `reviewer_ids` (array, optional): Array of reviewer user IDs
+- `labels` (array, optional): Array of labels
+- `milestone_id` (number, optional): Milestone ID
+- `remove_source_branch` (boolean, optional): Auto-remove source branch after merge (default: true)
+- `draft` (boolean, optional): Create as draft MR (default: false)
+
+**Examples:**
+```
+Create a merge request from feature-branch to main for project namespace/project_name
+```
+
+```
+Create a merge request with assignees and labels from feature-branch to main for project namespace/project_name
+```
+
+```
+Create a draft merge request with description "New feature implementation" from feature-branch to develop for project namespace/project_name
+```
+
+**Response Format:**
+Returns a JSON object of the created merge request containing:
+- `id`: Merge request ID
+- `iid`: Internal merge request ID
+- `title`: MR title
+- `description`: MR description
+- `state`: MR state (opened, closed, merged)
+- `source_branch`: Source branch name
+- `target_branch`: Target branch name
+- `author`: Author object with id, username, and name
+- `assignees`: Array of assignee objects
+- `reviewers`: Array of reviewer objects
+- `labels`: Array of label names
+- `milestone`: Milestone object (if assigned)
+- `web_url`: Web URL to the merge request
+- `draft`: Boolean indicating if this is a draft MR
+- `created_at`: Creation timestamp
+- `updated_at`: Last update timestamp
 
 ## Development
 

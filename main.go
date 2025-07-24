@@ -532,6 +532,180 @@ func handleAddIssueNoteRequest(
 	}
 }
 
+// setupCreateMergeRequestTool creates and registers the create_merge_request tool.
+func setupCreateMergeRequestTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	createMergeRequestTool := mcp.NewTool("create_merge_request",
+		mcp.WithDescription("Create a new merge request for a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithString("source_branch",
+			mcp.Required(),
+			mcp.Description("Source branch name"),
+		),
+		mcp.WithString("target_branch",
+			mcp.Required(),
+			mcp.Description("Target branch name"),
+		),
+		mcp.WithString("title",
+			mcp.Required(),
+			mcp.Description("MR title"),
+		),
+		mcp.WithString("description",
+			mcp.Description("MR description"),
+		),
+		mcp.WithArray("assignees",
+			mcp.Description("Array of assignee usernames or user IDs"),
+		),
+		mcp.WithArray("reviewers",
+			mcp.Description("Array of reviewer usernames or user IDs"),
+		),
+		mcp.WithArray("labels",
+			mcp.Description("Array of labels"),
+		),
+		mcp.WithString("milestone",
+			mcp.Description("Milestone title or ID"),
+		),
+		mcp.WithBoolean("remove_source_branch",
+			mcp.Description("Auto-remove source branch after merge (default: true)"),
+		),
+		mcp.WithBoolean("draft",
+			mcp.Description("Create as draft MR (default: false)"),
+		),
+	)
+
+	s.AddTool(createMergeRequestTool, handleCreateMergeRequestRequest(appInstance, debugLogger))
+}
+
+// handleCreateMergeRequestRequest handles the create_merge_request tool request.
+func handleCreateMergeRequestRequest(
+	appInstance *app.App, 
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received create_merge_request tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract source_branch (required)
+		sourceBranch, ok := args["source_branch"].(string)
+		if !ok || sourceBranch == "" {
+			debugLogger.Error("source_branch is missing or not a string", "value", args["source_branch"])
+			return mcp.NewToolResultError("source_branch must be a non-empty string"), nil
+		}
+
+		// Extract target_branch (required)
+		targetBranch, ok := args["target_branch"].(string)
+		if !ok || targetBranch == "" {
+			debugLogger.Error("target_branch is missing or not a string", "value", args["target_branch"])
+			return mcp.NewToolResultError("target_branch must be a non-empty string"), nil
+		}
+
+		// Extract title (required)
+		title, ok := args["title"].(string)
+		if !ok || title == "" {
+			debugLogger.Error("title is missing or not a string", "value", args["title"])
+			return mcp.NewToolResultError("title must be a non-empty string"), nil
+		}
+
+		// Extract options
+		opts := extractCreateMergeRequestOptions(args, sourceBranch, targetBranch, title)
+
+		debugLogger.Debug("Processing create_merge_request request", 
+			"project_path", projectPath, 
+			"title", title,
+			"source_branch", sourceBranch,
+			"target_branch", targetBranch)
+
+		// Call the app method
+		mr, err := appInstance.CreateProjectMergeRequest(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to create merge request", 
+				"error", err, 
+				"project_path", projectPath, 
+				"title", title)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to create merge request: %v", err)), nil
+		}
+
+		// Convert merge request to JSON
+		jsonData, err := json.Marshal(mr)
+		if err != nil {
+			debugLogger.Error("Failed to marshal merge request to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format merge request response"), nil
+		}
+
+		debugLogger.Info("Successfully created merge request", 
+			"id", mr.ID, 
+			"iid", mr.IID, 
+			"project_path", projectPath, 
+			"title", mr.Title)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractCreateMergeRequestOptions extracts create merge request options from arguments.
+func extractCreateMergeRequestOptions(
+	args map[string]interface{}, 
+	sourceBranch, targetBranch, title string,
+) *app.CreateMergeRequestOptions {
+	opts := &app.CreateMergeRequestOptions{
+		SourceBranch:       sourceBranch,
+		TargetBranch:       targetBranch,
+		Title:              title,
+		RemoveSourceBranch: true, // default to true as specified in issue
+	}
+
+	// Extract optional description
+	if description, ok := args["description"].(string); ok {
+		opts.Description = description
+	}
+
+	// Extract optional assignees (can be usernames or IDs)
+	if assigneesInterface, ok := args["assignees"].([]interface{}); ok {
+		opts.Assignees = assigneesInterface
+	}
+
+	// Extract optional reviewers (can be usernames or IDs)
+	if reviewersInterface, ok := args["reviewers"].([]interface{}); ok {
+		opts.Reviewers = reviewersInterface
+	}
+
+	// Extract optional labels
+	if labelsInterface, ok := args["labels"].([]interface{}); ok {
+		labels := make([]string, 0, len(labelsInterface))
+		for _, label := range labelsInterface {
+			if labelStr, ok := label.(string); ok {
+				labels = append(labels, labelStr)
+			}
+		}
+		opts.Labels = labels
+	}
+
+	// Extract optional milestone (can be title or ID)
+	if milestone, ok := args["milestone"]; ok {
+		opts.Milestone = milestone
+	}
+
+	// Extract optional remove_source_branch
+	if removeSourceBranch, ok := args["remove_source_branch"].(bool); ok {
+		opts.RemoveSourceBranch = removeSourceBranch
+	}
+
+	// Extract optional draft
+	if draft, ok := args["draft"].(bool); ok {
+		opts.Draft = draft
+	}
+
+	return opts
+}
+
 func printHelp() {
 	fmt.Printf(`GitLab MCP Server %s
 
@@ -551,11 +725,12 @@ ENVIRONMENT VARIABLES:
 DESCRIPTION:
     This MCP server provides the following tools for GitLab integration:
     
-    • list_issues     - List issues for a GitLab project
-    • create_issues   - Create new issues with metadata
-    • update_issues   - Update existing issues
-    • list_labels     - List project labels with filtering
-    • add_issue_note  - Add notes/comments to existing issues
+    • list_issues           - List issues for a GitLab project
+    • create_issues         - Create new issues with metadata
+    • update_issues         - Update existing issues
+    • list_labels           - List project labels with filtering
+    • add_issue_note        - Add notes/comments to existing issues
+    • create_merge_request  - Create new merge requests
     
     The server communicates via JSON-RPC 2.0 over stdin/stdout and is designed
     to be used with Claude Code's MCP architecture.
@@ -636,6 +811,9 @@ func main() {
 
 	// Create and register add_issue_note tool
 	setupAddIssueNoteTool(s, appInstance, debugLogger)
+
+	// Create and register create_merge_request tool
+	setupCreateMergeRequestTool(s, appInstance, debugLogger)
 
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {

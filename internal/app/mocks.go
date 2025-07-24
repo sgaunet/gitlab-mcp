@@ -44,6 +44,18 @@ func (m *MockGitLabClient) Notes() NotesService {
 	return result
 }
 
+func (m *MockGitLabClient) MergeRequests() MergeRequestsService {
+	args := m.Called()
+	result, _ := args.Get(0).(MergeRequestsService)
+	return result
+}
+
+func (m *MockGitLabClient) Milestones() MilestonesService {
+	args := m.Called()
+	result, _ := args.Get(0).(MilestonesService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -122,6 +134,13 @@ func (m *MockUsersService) CurrentUser() (*gitlab.User, *gitlab.Response, error)
 	return user, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockUsersService) ListUsers(opt *gitlab.ListUsersOptions) ([]*gitlab.User, *gitlab.Response, error) {
+	args := m.Called(opt)
+	users, _ := args.Get(0).([]*gitlab.User)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return users, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 // MockNotesService is a mock implementation of NotesService.
 type MockNotesService struct {
 	mock.Mock
@@ -136,4 +155,34 @@ func (m *MockNotesService) CreateIssueNote(
 	note, _ := args.Get(0).(*gitlab.Note)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return note, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockMergeRequestsService is a mock implementation of MergeRequestsService.
+type MockMergeRequestsService struct {
+	mock.Mock
+}
+
+func (m *MockMergeRequestsService) CreateMergeRequest(
+	pid interface{}, 
+	opt *gitlab.CreateMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	mr, _ := args.Get(0).(*gitlab.MergeRequest)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return mr, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockMilestonesService is a mock implementation of MilestonesService.
+type MockMilestonesService struct {
+	mock.Mock
+}
+
+func (m *MockMilestonesService) ListMilestones(
+	pid interface{}, 
+	opt *gitlab.ListMilestonesOptions,
+) ([]*gitlab.Milestone, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	milestones, _ := args.Get(0).([]*gitlab.Milestone)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return milestones, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
