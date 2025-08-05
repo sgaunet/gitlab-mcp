@@ -33,6 +33,12 @@ builds:
 
 archives:
   - name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+  - id: binary
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     formats: ['binary']
 
 release:
@@ -133,7 +139,8 @@ changelog:
       - '^test:'
 
 brews:
-  - homepage: 'https://github.com/sgaunet/gitlab-mcp'
+  - ids: [default]  # Use the default archive (tar.gz/zip), not binary
+    homepage: 'https://github.com/sgaunet/gitlab-mcp'
     description: 'A Model Context Protocol (MCP) server that provides GitLab integration tools for Claude Code'
     directory: Formula
     commit_author:
