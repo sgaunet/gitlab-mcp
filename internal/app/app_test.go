@@ -1018,3 +1018,460 @@ func TestApp_AddIssueNote_InvalidIssueIID(t *testing.T) {
 	assert.Equal(t, ErrInvalidIssueIID, err)
 	assert.Nil(t, got)
 }
+
+func TestApp_CreateProjectMergeRequest(t *testing.T) {
+	testTime := time.Now()
+	
+	tests := []struct {
+		name    string
+		opts    *CreateMergeRequestOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService)
+		want    *MergeRequest
+		wantErr bool
+	}{
+		{
+			name: "successful create with minimal options",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Title:        "Test MR",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
+				client.On("Projects").Return(projects)
+				client.On("MergeRequests").Return(mrs)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.CreateMergeRequestOptions{
+					Title:              gitlab.Ptr("Test MR"),
+					SourceBranch:       gitlab.Ptr("feature-branch"),
+					TargetBranch:       gitlab.Ptr("main"),
+					RemoveSourceBranch: gitlab.Ptr(false),
+				}
+				
+				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+					&gitlab.MergeRequest{
+						BasicMergeRequest: gitlab.BasicMergeRequest{
+							ID:           1,
+							IID:          100,
+							Title:        "Test MR",
+							Description:  "",
+							State:        "opened",
+							SourceBranch: "feature-branch",
+							TargetBranch: "main",
+							Author:       &gitlab.BasicUser{ID: 1, Username: "testuser", Name: "Test User"},
+							Assignees:    []*gitlab.BasicUser{},
+							Reviewers:    []*gitlab.BasicUser{},
+							Labels:       gitlab.Labels{},
+							Milestone:    nil,
+							WebURL:       "https://gitlab.com/test/project/-/merge_requests/100",
+							Draft:        false,
+							CreatedAt:    &testTime,
+							UpdatedAt:    &testTime,
+						},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &MergeRequest{
+				ID:           1,
+				IID:          100,
+				Title:        "Test MR",
+				Description:  "",
+				State:        "opened",
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Author:       map[string]interface{}{"id": 1, "username": "testuser", "name": "Test User"},
+				Assignees:    []map[string]interface{}{},
+				Reviewers:    []map[string]interface{}{},
+				Labels:       []string{},
+				Milestone:    nil,
+				WebURL:       "https://gitlab.com/test/project/-/merge_requests/100",
+				Draft:        false,
+				CreatedAt:    testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt:    testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful create with all options",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch:       "feature-branch",
+				TargetBranch:       "main",
+				Title:              "Test MR with options",
+				Description:        "This is a test merge request",
+				Assignees:          []interface{}{1, 2},
+				Reviewers:          []interface{}{3, 4},
+				Labels:             []string{"enhancement", "feature"},
+				Milestone:          10,
+				RemoveSourceBranch: true,
+				Draft:              true,
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
+				client.On("Projects").Return(projects)
+				client.On("MergeRequests").Return(mrs)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.CreateMergeRequestOptions{
+					Title:              gitlab.Ptr("Test MR with options"),
+					SourceBranch:       gitlab.Ptr("feature-branch"),
+					TargetBranch:       gitlab.Ptr("main"),
+					Description:        gitlab.Ptr("This is a test merge request"),
+					AssigneeIDs:        &[]int{1, 2},
+					ReviewerIDs:        &[]int{3, 4},
+					Labels:             (*gitlab.LabelOptions)(&[]string{"enhancement", "feature"}),
+					MilestoneID:        gitlab.Ptr(10),
+					RemoveSourceBranch: gitlab.Ptr(true),
+				}
+				
+				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+					&gitlab.MergeRequest{
+						BasicMergeRequest: gitlab.BasicMergeRequest{
+							ID:           2,
+							IID:          101,
+							Title:        "Test MR with options",
+							Description:  "This is a test merge request",
+							State:        "opened",
+							SourceBranch: "feature-branch",
+							TargetBranch: "main",
+							Author:       &gitlab.BasicUser{ID: 1, Username: "testuser", Name: "Test User"},
+							Assignees:    []*gitlab.BasicUser{{ID: 1, Username: "assignee1", Name: "Assignee One"}, {ID: 2, Username: "assignee2", Name: "Assignee Two"}},
+							Reviewers:    []*gitlab.BasicUser{{ID: 3, Username: "reviewer1", Name: "Reviewer One"}, {ID: 4, Username: "reviewer2", Name: "Reviewer Two"}},
+							Labels:       gitlab.Labels{"enhancement", "feature"},
+							Milestone:    &gitlab.Milestone{ID: 10, Title: "v1.0"},
+							WebURL:       "https://gitlab.com/test/project/-/merge_requests/101",
+							Draft:        true,
+							CreatedAt:    &testTime,
+							UpdatedAt:    &testTime,
+						},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &MergeRequest{
+				ID:           2,
+				IID:          101,
+				Title:        "Test MR with options",
+				Description:  "This is a test merge request",
+				State:        "opened",
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Author:       map[string]interface{}{"id": 1, "username": "testuser", "name": "Test User"},
+				Assignees:    []map[string]interface{}{{"id": 1, "username": "assignee1", "name": "Assignee One"}, {"id": 2, "username": "assignee2", "name": "Assignee Two"}},
+				Reviewers:    []map[string]interface{}{{"id": 3, "username": "reviewer1", "name": "Reviewer One"}, {"id": 4, "username": "reviewer2", "name": "Reviewer Two"}},
+				Labels:       []string{"enhancement", "feature"},
+				Milestone:    map[string]interface{}{"id": 10, "title": "v1.0"},
+				WebURL:       "https://gitlab.com/test/project/-/merge_requests/101",
+				Draft:        true,
+				CreatedAt:    testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt:    testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nil options",
+			opts:    nil,
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "empty title",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Title:        "",
+			},
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "empty source branch",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch: "",
+				TargetBranch: "main",
+				Title:        "Test MR",
+			},
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "empty target branch",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch: "feature-branch",
+				TargetBranch: "",
+				Title:        "Test MR",
+			},
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "project not found",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Title:        "Test MR",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "invalid/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "create merge request API error",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Title:        "Test MR",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
+				client.On("Projects").Return(projects)
+				client.On("MergeRequests").Return(mrs)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				expectedOpts := &gitlab.CreateMergeRequestOptions{
+					Title:              gitlab.Ptr("Test MR"),
+					SourceBranch:       gitlab.Ptr("feature-branch"),
+					TargetBranch:       gitlab.Ptr("main"),
+					RemoveSourceBranch: gitlab.Ptr(false),
+				}
+				
+				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+					(*gitlab.MergeRequest)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockMRs := &MockMergeRequestsService{}
+			
+			tt.setup(mockClient, mockProjects, mockMRs)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			
+			projectPath := "test/project"
+			if tt.name == "project not found" {
+				projectPath = "invalid/project"
+			}
+			got, err := app.CreateProjectMergeRequest(projectPath, tt.opts)
+			
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockMRs.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
+	t.Parallel()
+	
+	testTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	
+	testCases := []struct {
+		name     string
+		opts     *CreateMergeRequestOptions
+		setup    func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService, *MockUsersService, *MockMilestonesService)
+		want     *MergeRequest
+		wantErr  bool
+		errMsg   string
+	}{
+		{
+			name: "successful create with username resolution",
+			opts: &CreateMergeRequestOptions{
+				SourceBranch:       "feature-branch",
+				TargetBranch:       "main",
+				Title:              "Test MR with usernames",
+				Description:        "This is a test merge request",
+				Assignees:          []interface{}{"alice", "bob"},
+				Reviewers:          []interface{}{"charlie"},
+				Labels:             []string{"enhancement"},
+				Milestone:          "v1.0",
+				RemoveSourceBranch: true,
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService, users *MockUsersService, milestones *MockMilestonesService) {
+				client.On("Projects").Return(projects)
+				client.On("MergeRequests").Return(mrs)
+				client.On("Users").Return(users)
+				client.On("Milestones").Return(milestones)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+				
+				// Mock user lookups
+				aliceUsername := "alice"
+				users.On("ListUsers", &gitlab.ListUsersOptions{
+					Username: &aliceUsername,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}).Return([]*gitlab.User{{ID: 10, Username: "alice"}}, &gitlab.Response{}, nil)
+				
+				bobUsername := "bob"
+				users.On("ListUsers", &gitlab.ListUsersOptions{
+					Username: &bobUsername,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}).Return([]*gitlab.User{{ID: 20, Username: "bob"}}, &gitlab.Response{}, nil)
+				
+				charlieUsername := "charlie"
+				users.On("ListUsers", &gitlab.ListUsersOptions{
+					Username: &charlieUsername,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}).Return([]*gitlab.User{{ID: 30, Username: "charlie"}}, &gitlab.Response{}, nil)
+				
+				// Mock milestone lookup
+				state := "active"
+				milestones.On("ListMilestones", 123, &gitlab.ListMilestonesOptions{
+					State:       &state,
+					ListOptions: gitlab.ListOptions{PerPage: maxMilestonesPerPage, Page: 1},
+				}).Return([]*gitlab.Milestone{
+					{ID: 100, Title: "v1.0"},
+					{ID: 101, Title: "v2.0"},
+				}, &gitlab.Response{}, nil)
+				
+				expectedOpts := &gitlab.CreateMergeRequestOptions{
+					Title:              gitlab.Ptr("Test MR with usernames"),
+					SourceBranch:       gitlab.Ptr("feature-branch"),
+					TargetBranch:       gitlab.Ptr("main"),
+					Description:        gitlab.Ptr("This is a test merge request"),
+					AssigneeIDs:        &[]int{10, 20},
+					ReviewerIDs:        &[]int{30},
+					Labels:             (*gitlab.LabelOptions)(&[]string{"enhancement"}),
+					MilestoneID:        gitlab.Ptr(100),
+					RemoveSourceBranch: gitlab.Ptr(true),
+				}
+				
+				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+					&gitlab.MergeRequest{
+						BasicMergeRequest: gitlab.BasicMergeRequest{
+							ID:           3,
+							IID:          102,
+							Title:        "Test MR with usernames",
+							Description:  "This is a test merge request",
+							State:        "opened",
+							SourceBranch: "feature-branch",
+							TargetBranch: "main",
+							Author: &gitlab.BasicUser{
+								ID:       1,
+								Username: "testuser",
+								Name:     "Test User",
+							},
+							Assignees: []*gitlab.BasicUser{
+								{ID: 10, Username: "alice", Name: "Alice"},
+								{ID: 20, Username: "bob", Name: "Bob"},
+							},
+							Reviewers: []*gitlab.BasicUser{
+								{ID: 30, Username: "charlie", Name: "Charlie"},
+							},
+							Labels: []string{"enhancement"},
+							Milestone: &gitlab.Milestone{
+								ID:    100,
+								Title: "v1.0",
+							},
+							WebURL:    "https://gitlab.com/test/project/-/merge_requests/102",
+							Draft:     false,
+							CreatedAt: &testTime,
+							UpdatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: &MergeRequest{
+				ID:           3,
+				IID:          102,
+				Title:        "Test MR with usernames",
+				Description:  "This is a test merge request",
+				State:        "opened",
+				SourceBranch: "feature-branch",
+				TargetBranch: "main",
+				Author: map[string]interface{}{
+					"id":       1,
+					"username": "testuser",
+					"name":     "Test User",
+				},
+				Assignees: []map[string]interface{}{
+					{"id": 10, "username": "alice", "name": "Alice"},
+					{"id": 20, "username": "bob", "name": "Bob"},
+				},
+				Reviewers: []map[string]interface{}{
+					{"id": 30, "username": "charlie", "name": "Charlie"},
+				},
+				Labels: []string{"enhancement"},
+				Milestone: map[string]interface{}{
+					"id":    100,
+					"title": "v1.0",
+				},
+				WebURL:    "https://gitlab.com/test/project/-/merge_requests/102",
+				Draft:     false,
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+	}
+	
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			
+			mockClient := new(MockGitLabClient)
+			mockProjects := new(MockProjectsService)
+			mockMRs := new(MockMergeRequestsService)
+			mockUsers := new(MockUsersService)
+			mockMilestones := new(MockMilestonesService)
+			
+			if tc.setup != nil {
+				tc.setup(mockClient, mockProjects, mockMRs, mockUsers, mockMilestones)
+			}
+			
+			app := NewWithClient("test-token", "https://gitlab.com/", mockClient)
+			
+			got, err := app.CreateProjectMergeRequest("test/project", tc.opts)
+			
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errMsg != "" {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
+				return
+			}
+			
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockMRs.AssertExpectations(t)
+			mockUsers.AssertExpectations(t)
+			mockMilestones.AssertExpectations(t)
+		})
+	}
+}

@@ -24,11 +24,25 @@ type LabelsService interface {
 // UsersService interface for GitLab Users operations.
 type UsersService interface {
 	CurrentUser() (*gitlab.User, *gitlab.Response, error)
+	ListUsers(opt *gitlab.ListUsersOptions) ([]*gitlab.User, *gitlab.Response, error)
 }
 
 // NotesService interface for GitLab Notes operations.
 type NotesService interface {
 	CreateIssueNote(pid interface{}, issue int, opt *gitlab.CreateIssueNoteOptions) (*gitlab.Note, *gitlab.Response, error)
+}
+
+// MergeRequestsService interface for GitLab MergeRequests operations.
+type MergeRequestsService interface {
+	CreateMergeRequest(
+		pid interface{}, 
+		opt *gitlab.CreateMergeRequestOptions,
+	) (*gitlab.MergeRequest, *gitlab.Response, error)
+}
+
+// MilestonesService interface for GitLab Milestones operations.
+type MilestonesService interface {
+	ListMilestones(pid interface{}, opt *gitlab.ListMilestonesOptions) ([]*gitlab.Milestone, *gitlab.Response, error)
 }
 
 // GitLabClient interface that provides access to all GitLab services.
@@ -38,4 +52,6 @@ type GitLabClient interface {
 	Labels() LabelsService
 	Users() UsersService
 	Notes() NotesService
+	MergeRequests() MergeRequestsService
+	Milestones() MilestonesService
 }
