@@ -28,10 +28,19 @@ builds:
       - goos: windows
         goarch: arm
         goarm: "6"
+      - goos: windows
+        goarch: arm64
 
 archives:
   - name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     formats: ['binary']
+
+release:
+  # Handle existing releases gracefully
+  replace_existing_draft: true
+  mode: replace
+  draft: false
+  prerelease: auto
 
 checksum:
   # https://goreleaser.com/customization/checksum/
@@ -125,7 +134,7 @@ changelog:
 
 brews:
   - homepage: 'https://github.com/sgaunet/gitlab-mcp'
-    description: ''
+    description: 'A Model Context Protocol (MCP) server that provides GitLab integration tools for Claude Code'
     directory: Formula
     commit_author:
       name: sgaunet
