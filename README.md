@@ -31,9 +31,39 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 ## Installation
 
+### Option 1: Install with Homebrew (Recommended for macOS/Linux)
+
+```bash
+# Add the tap and install
+brew install sgaunet/tools/gitlab-mcp
+```
+
+### Option 2: Download from GitHub Releases
+
+1. **Download the latest release:**
+   
+   Visit the [releases page](https://github.com/sgaunet/gitlab-mcp/releases/latest) and download the appropriate binary for your platform:
+   
+   - **macOS**: `gitlab-mcp_VERSION_darwin_amd64` (Intel) or `gitlab-mcp_VERSION_darwin_arm64` (Apple Silicon)
+   - **Linux**: `gitlab-mcp_VERSION_linux_amd64` (x86_64) or `gitlab-mcp_VERSION_linux_arm64` (ARM64)
+   - **Windows**: `gitlab-mcp_VERSION_windows_amd64.exe`
+
+2. **Make it executable (macOS/Linux):**
+   ```bash
+   chmod +x gitlab-mcp_*
+   ```
+
+3. **Move to a location in your PATH:**
+   ```bash
+   # Example for macOS/Linux
+   sudo mv gitlab-mcp_* /usr/local/bin/gitlab-mcp
+   ```
+
+### Option 3: Build from Source
+
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/sgaunet/gitlab-mcp.git
    cd gitlab-mcp
    ```
 
@@ -47,12 +77,22 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
    go build -o gitlab-mcp
    ```
 
-3. **Add to Claude Code:**
+3. **Install to your PATH:**
    ```bash
-   claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
+   sudo mv gitlab-mcp /usr/local/bin/
    ```
-   
-   Replace `/path/to/gitlab-mcp` with the actual path to your built executable.
+
+### Add to Claude Code
+
+After installation, add the MCP server to Claude Code:
+
+```bash
+# If installed via Homebrew or to /usr/local/bin
+claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
+
+# If installed elsewhere, adjust the path accordingly
+claude mcp add gitlab-mcp -s user -- /path/to/gitlab-mcp
+```
 
 ## Usage
 
