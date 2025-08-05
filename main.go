@@ -34,7 +34,8 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 		mcp.WithDescription("List issues for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("state",
 			mcp.Description("Filter by issue state: opened, closed, or all (default: opened)"),
@@ -103,7 +104,8 @@ func setupCreateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 		mcp.WithDescription("Create a new issue for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("title",
 			mcp.Required(),
@@ -175,7 +177,7 @@ func handleCreateIssueRequest(
 }
 
 // extractCreateIssueOptions extracts create issue options from arguments.
-func extractCreateIssueOptions(args map[string]interface{}, title string) *app.CreateIssueOptions {
+func extractCreateIssueOptions(args map[string]any, title string) *app.CreateIssueOptions {
 	opts := &app.CreateIssueOptions{
 		Title: title,
 	}
@@ -186,7 +188,7 @@ func extractCreateIssueOptions(args map[string]interface{}, title string) *app.C
 	}
 
 	// Extract optional labels
-	if labelsInterface, ok := args["labels"].([]interface{}); ok {
+	if labelsInterface, ok := args["labels"].([]any); ok {
 		labels := make([]string, 0, len(labelsInterface))
 		for _, label := range labelsInterface {
 			if labelStr, ok := label.(string); ok {
@@ -197,7 +199,7 @@ func extractCreateIssueOptions(args map[string]interface{}, title string) *app.C
 	}
 
 	// Extract optional assignees
-	if assigneesInterface, ok := args["assignees"].([]interface{}); ok {
+	if assigneesInterface, ok := args["assignees"].([]any); ok {
 		assignees := make([]int, 0, len(assigneesInterface))
 		for _, assignee := range assigneesInterface {
 			if assigneeFloat, ok := assignee.(float64); ok {
@@ -216,7 +218,8 @@ func setupUpdateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 		mcp.WithDescription("Update an existing issue for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithNumber("issue_iid",
 			mcp.Required(),
@@ -294,7 +297,7 @@ func handleUpdateIssueRequest(
 }
 
 // extractUpdateIssueOptions extracts update issue options from arguments.
-func extractUpdateIssueOptions(args map[string]interface{}, debugLogger *slog.Logger) (*app.UpdateIssueOptions, error) {
+func extractUpdateIssueOptions(args map[string]any, debugLogger *slog.Logger) (*app.UpdateIssueOptions, error) {
 	opts := &app.UpdateIssueOptions{}
 
 	// Extract basic string fields
@@ -312,7 +315,7 @@ func extractUpdateIssueOptions(args map[string]interface{}, debugLogger *slog.Lo
 }
 
 // extractUpdateStringFields extracts string fields for update options.
-func extractUpdateStringFields(args map[string]interface{}, opts *app.UpdateIssueOptions) {
+func extractUpdateStringFields(args map[string]any, opts *app.UpdateIssueOptions) {
 	if title, ok := args["title"].(string); ok && title != "" {
 		opts.Title = title
 	}
@@ -323,7 +326,7 @@ func extractUpdateStringFields(args map[string]interface{}, opts *app.UpdateIssu
 }
 
 // extractUpdateState extracts and validates the state field.
-func extractUpdateState(args map[string]interface{}, opts *app.UpdateIssueOptions, debugLogger *slog.Logger) error {
+func extractUpdateState(args map[string]any, opts *app.UpdateIssueOptions, debugLogger *slog.Logger) error {
 	if state, ok := args["state"].(string); ok && state != "" {
 		if state != "opened" && state != "closed" {
 			debugLogger.Error("invalid state value", "state", state)
@@ -335,9 +338,9 @@ func extractUpdateState(args map[string]interface{}, opts *app.UpdateIssueOption
 }
 
 // extractUpdateArrayFields extracts array fields for update options.
-func extractUpdateArrayFields(args map[string]interface{}, opts *app.UpdateIssueOptions) {
+func extractUpdateArrayFields(args map[string]any, opts *app.UpdateIssueOptions) {
 	// Extract optional labels
-	if labelsInterface, ok := args["labels"].([]interface{}); ok {
+	if labelsInterface, ok := args["labels"].([]any); ok {
 		labels := make([]string, 0, len(labelsInterface))
 		for _, label := range labelsInterface {
 			if labelStr, ok := label.(string); ok {
@@ -348,7 +351,7 @@ func extractUpdateArrayFields(args map[string]interface{}, opts *app.UpdateIssue
 	}
 
 	// Extract optional assignees
-	if assigneesInterface, ok := args["assignees"].([]interface{}); ok {
+	if assigneesInterface, ok := args["assignees"].([]any); ok {
 		assignees := make([]int, 0, len(assigneesInterface))
 		for _, assignee := range assigneesInterface {
 			if assigneeFloat, ok := assignee.(float64); ok {
@@ -365,7 +368,8 @@ func setupListLabelsTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 		mcp.WithDescription("List labels for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithBoolean("with_counts",
 			mcp.Description("Include issue and merge request counts (default: false)"),
@@ -425,7 +429,7 @@ func handleListLabelsRequest(
 }
 
 // extractListLabelsOptions extracts list labels options from arguments.
-func extractListLabelsOptions(args map[string]interface{}) *app.ListLabelsOptions {
+func extractListLabelsOptions(args map[string]any) *app.ListLabelsOptions {
 	opts := &app.ListLabelsOptions{
 		WithCounts:            false, // default
 		IncludeAncestorGroups: false, // default
@@ -457,7 +461,8 @@ func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogge
 		mcp.WithDescription("Add a note/comment to an existing issue for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithNumber("issue_iid",
 			mcp.Required(),
@@ -538,7 +543,8 @@ func setupCreateMergeRequestTool(s *server.MCPServer, appInstance *app.App, debu
 		mcp.WithDescription("Create a new merge request for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path (e.g., 'namespace/project-name')"),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("source_branch",
 			mcp.Required(),
@@ -587,72 +593,100 @@ func handleCreateMergeRequestRequest(
 		args := request.GetArguments()
 		debugLogger.Debug("Received create_merge_request tool request", "args", args)
 
-		// Extract project_path
-		projectPath, ok := args["project_path"].(string)
-		if !ok || projectPath == "" {
-			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
-			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		// Validate and extract required parameters
+		params, err := validateCreateMergeRequestParams(args, debugLogger)
+		if err != nil {
+			return err, nil
 		}
-
-		// Extract source_branch (required)
-		sourceBranch, ok := args["source_branch"].(string)
-		if !ok || sourceBranch == "" {
-			debugLogger.Error("source_branch is missing or not a string", "value", args["source_branch"])
-			return mcp.NewToolResultError("source_branch must be a non-empty string"), nil
-		}
-
-		// Extract target_branch (required)
-		targetBranch, ok := args["target_branch"].(string)
-		if !ok || targetBranch == "" {
-			debugLogger.Error("target_branch is missing or not a string", "value", args["target_branch"])
-			return mcp.NewToolResultError("target_branch must be a non-empty string"), nil
-		}
-
-		// Extract title (required)
-		title, ok := args["title"].(string)
-		if !ok || title == "" {
-			debugLogger.Error("title is missing or not a string", "value", args["title"])
-			return mcp.NewToolResultError("title must be a non-empty string"), nil
-		}
-
-		// Extract options
-		opts := extractCreateMergeRequestOptions(args, sourceBranch, targetBranch, title)
 
 		debugLogger.Debug("Processing create_merge_request request", 
-			"project_path", projectPath, 
-			"title", title,
-			"source_branch", sourceBranch,
-			"target_branch", targetBranch)
+			"project_path", params.projectPath, 
+			"title", params.title,
+			"source_branch", params.sourceBranch,
+			"target_branch", params.targetBranch)
 
 		// Call the app method
-		mr, err := appInstance.CreateProjectMergeRequest(projectPath, opts)
-		if err != nil {
+		mr, appErr := appInstance.CreateProjectMergeRequest(params.projectPath, params.opts)
+		if appErr != nil {
 			debugLogger.Error("Failed to create merge request", 
-				"error", err, 
-				"project_path", projectPath, 
-				"title", title)
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to create merge request: %v", err)), nil
+				"error", appErr, 
+				"project_path", params.projectPath, 
+				"title", params.title)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to create merge request: %v", appErr)), nil
 		}
 
 		// Convert merge request to JSON
-		jsonData, err := json.Marshal(mr)
-		if err != nil {
-			debugLogger.Error("Failed to marshal merge request to JSON", "error", err)
+		jsonData, jsonErr := json.Marshal(mr)
+		if jsonErr != nil {
+			debugLogger.Error("Failed to marshal merge request to JSON", "error", jsonErr)
 			return mcp.NewToolResultError("Failed to format merge request response"), nil
 		}
 
 		debugLogger.Info("Successfully created merge request", 
 			"id", mr.ID, 
 			"iid", mr.IID, 
-			"project_path", projectPath, 
+			"project_path", params.projectPath, 
 			"title", mr.Title)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	}
 }
 
+// createMergeRequestParams holds validated parameters for merge request creation.
+type createMergeRequestParams struct {
+	projectPath  string
+	sourceBranch string
+	targetBranch string
+	title        string
+	opts         *app.CreateMergeRequestOptions
+}
+
+// validateCreateMergeRequestParams validates and extracts parameters for merge request creation.
+func validateCreateMergeRequestParams(
+	args map[string]any, debugLogger *slog.Logger,
+) (*createMergeRequestParams, *mcp.CallToolResult) {
+	// Extract project_path
+	projectPath, ok := args["project_path"].(string)
+	if !ok || projectPath == "" {
+		debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+		return nil, mcp.NewToolResultError("project_path must be a non-empty string")
+	}
+
+	// Extract source_branch (required)
+	sourceBranch, ok := args["source_branch"].(string)
+	if !ok || sourceBranch == "" {
+		debugLogger.Error("source_branch is missing or not a string", "value", args["source_branch"])
+		return nil, mcp.NewToolResultError("source_branch must be a non-empty string")
+	}
+
+	// Extract target_branch (required)
+	targetBranch, ok := args["target_branch"].(string)
+	if !ok || targetBranch == "" {
+		debugLogger.Error("target_branch is missing or not a string", "value", args["target_branch"])
+		return nil, mcp.NewToolResultError("target_branch must be a non-empty string")
+	}
+
+	// Extract title (required)
+	title, ok := args["title"].(string)
+	if !ok || title == "" {
+		debugLogger.Error("title is missing or not a string", "value", args["title"])
+		return nil, mcp.NewToolResultError("title must be a non-empty string")
+	}
+
+	// Extract options
+	opts := extractCreateMergeRequestOptions(args, sourceBranch, targetBranch, title)
+
+	return &createMergeRequestParams{
+		projectPath:  projectPath,
+		sourceBranch: sourceBranch,
+		targetBranch: targetBranch,
+		title:        title,
+		opts:         opts,
+	}, nil
+}
+
 // extractCreateMergeRequestOptions extracts create merge request options from arguments.
 func extractCreateMergeRequestOptions(
-	args map[string]interface{}, 
+	args map[string]any, 
 	sourceBranch, targetBranch, title string,
 ) *app.CreateMergeRequestOptions {
 	opts := &app.CreateMergeRequestOptions{
@@ -668,17 +702,17 @@ func extractCreateMergeRequestOptions(
 	}
 
 	// Extract optional assignees (can be usernames or IDs)
-	if assigneesInterface, ok := args["assignees"].([]interface{}); ok {
+	if assigneesInterface, ok := args["assignees"].([]any); ok {
 		opts.Assignees = assigneesInterface
 	}
 
 	// Extract optional reviewers (can be usernames or IDs)
-	if reviewersInterface, ok := args["reviewers"].([]interface{}); ok {
+	if reviewersInterface, ok := args["reviewers"].([]any); ok {
 		opts.Reviewers = reviewersInterface
 	}
 
 	// Extract optional labels
-	if labelsInterface, ok := args["labels"].([]interface{}); ok {
+	if labelsInterface, ok := args["labels"].([]any); ok {
 		labels := make([]string, 0, len(labelsInterface))
 		for _, label := range labelsInterface {
 			if labelStr, ok := label.(string); ok {

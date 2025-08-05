@@ -63,7 +63,7 @@ Once installed, the MCP server provides the following tools in Claude Code:
 Lists issues for a GitLab project using the project path.
 
 **Parameters:**
-- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
 - `state` (string, optional): Filter by issue state (`opened`, `closed`, `all`) - defaults to `opened`
 - `labels` (string, optional): Comma-separated list of labels to filter by
 - `limit` (number, optional): Maximum number of issues to return (default: 100, max: 100)
@@ -98,7 +98,7 @@ Returns a JSON array of issue objects, each containing:
 Creates a new issue for a GitLab project.
 
 **Parameters:**
-- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
 - `title` (string, required): Issue title
 - `description` (string, optional): Issue description
 - `labels` (array, optional): Array of labels to assign to the issue
@@ -121,7 +121,7 @@ Returns a JSON object of the created issue with the same structure as list_issue
 Updates an existing issue for a GitLab project.
 
 **Parameters:**
-- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
 - `issue_iid` (number, required): Issue internal ID (IID) to update
 - `title` (string, optional): Updated issue title
 - `description` (string, optional): Updated issue description
@@ -146,7 +146,7 @@ Returns a JSON object of the updated issue with the same structure as list_issue
 Lists labels for a GitLab project with optional filtering.
 
 **Parameters:**
-- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
 - `with_counts` (boolean, optional): Include issue and merge request counts (default: false)
 - `include_ancestor_groups` (boolean, optional): Include labels from ancestor groups (default: false)
 - `search` (string, optional): Filter labels by search keyword
@@ -181,7 +181,7 @@ Returns a JSON array of label objects, each containing:
 Adds a note/comment to an existing issue for a GitLab project.
 
 **Parameters:**
-- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
 - `issue_iid` (number, required): Issue internal ID (IID) to add note to
 - `body` (string, required): Note/comment body text
 
@@ -209,7 +209,7 @@ Returns a JSON object of the created note containing:
 Creates a new merge request for a GitLab project.
 
 **Parameters:**
-- `project_path` (string, required): GitLab project path (e.g., 'namespace/project-name')
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
 - `source_branch` (string, required): Source branch name
 - `target_branch` (string, required): Target branch name
 - `title` (string, required): MR title

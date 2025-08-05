@@ -646,18 +646,8 @@ func (a *App) AddIssueNote(projectPath string, issueIID int, opts *AddIssueNoteO
 
 // CreateProjectMergeRequest creates a new merge request for a given project path.
 func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeRequestOptions) (*MergeRequest, error) {
-	// Validate required options
-	if opts == nil {
-		return nil, ErrCreateMROptionsRequired
-	}
-	if opts.Title == "" {
-		return nil, ErrMRTitleRequired
-	}
-	if opts.SourceBranch == "" {
-		return nil, ErrMRSourceBranchRequired
-	}
-	if opts.TargetBranch == "" {
-		return nil, ErrMRTargetBranchRequired
+	if err := a.validateMergeRequestOptions(opts); err != nil {
+		return nil, err
 	}
 	
 	a.logger.Debug("Creating merge request for project", 
@@ -675,6 +665,56 @@ func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeReq
 	projectID := project.ID
 
 	// Create GitLab API options
+	createOpts, err := a.buildMergeRequestOptions(projectID, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Call GitLab API
+	mr, _, err := a.client.MergeRequests().CreateMergeRequest(projectID, createOpts)
+	if err != nil {
+		a.logger.Error("Failed to create merge request", 
+			"error", err, 
+			"project_id", projectID, 
+			"title", opts.Title)
+		return nil, fmt.Errorf("failed to create merge request: %w", err)
+	}
+
+	a.logger.Debug("Created merge request", 
+		"id", mr.ID, 
+		"iid", mr.IID, 
+		"project_id", projectID)
+
+	result := convertGitLabMergeRequest(mr)
+	a.logger.Info("Successfully created merge request", 
+		"id", result.ID, 
+		"iid", result.IID, 
+		"project_id", projectID, 
+		"title", result.Title)
+	return &result, nil
+}
+
+// validateMergeRequestOptions validates the required merge request options.
+func (a *App) validateMergeRequestOptions(opts *CreateMergeRequestOptions) error {
+	if opts == nil {
+		return ErrCreateMROptionsRequired
+	}
+	if opts.Title == "" {
+		return ErrMRTitleRequired
+	}
+	if opts.SourceBranch == "" {
+		return ErrMRSourceBranchRequired
+	}
+	if opts.TargetBranch == "" {
+		return ErrMRTargetBranchRequired
+	}
+	return nil
+}
+
+// buildMergeRequestOptions builds the GitLab API options for creating a merge request.
+func (a *App) buildMergeRequestOptions(projectID int, opts *CreateMergeRequestOptions) (
+	*gitlab.CreateMergeRequestOptions, error,
+) {
 	createOpts := &gitlab.CreateMergeRequestOptions{
 		Title:        &opts.Title,
 		SourceBranch: &opts.SourceBranch,
@@ -730,28 +770,7 @@ func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeReq
 	// Note: Draft is handled by GitLab automatically based on the title prefix "Draft:" or "WIP:"
 	// The Draft field in our struct is for output only
 
-	// Call GitLab API
-	mr, _, err := a.client.MergeRequests().CreateMergeRequest(projectID, createOpts)
-	if err != nil {
-		a.logger.Error("Failed to create merge request", 
-			"error", err, 
-			"project_id", projectID, 
-			"title", opts.Title)
-		return nil, fmt.Errorf("failed to create merge request: %w", err)
-	}
-
-	a.logger.Debug("Created merge request", 
-		"id", mr.ID, 
-		"iid", mr.IID, 
-		"project_id", projectID)
-
-	result := convertGitLabMergeRequest(mr)
-	a.logger.Info("Successfully created merge request", 
-		"id", result.ID, 
-		"iid", result.IID, 
-		"project_id", projectID, 
-		"title", result.Title)
-	return &result, nil
+	return createOpts, nil
 }
 
 // resolveUserIdentifiers converts username strings or IDs to user IDs.
