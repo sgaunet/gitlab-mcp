@@ -87,7 +87,10 @@ brew install sgaunet/tools/gitlab-mcp
 After installation, add the MCP server to Claude Code:
 
 ```bash
-# If installed via Homebrew or to /usr/local/bin
+# If installed via Homebrew (Apple Silicon)
+claude mcp add gitlab-mcp -s user -- /opt/homebrew/bin/gitlab-mcp
+
+# If installed via Homebrew (Intel Mac) or manually to /usr/local/bin
 claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
 
 # If installed elsewhere, adjust the path accordingly
