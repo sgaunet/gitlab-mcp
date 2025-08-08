@@ -694,6 +694,142 @@ func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeReq
 	return &result, nil
 }
 
+
+// ProjectInfo represents basic project information.
+type ProjectInfo struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Path        string   `json:"path"`
+	Description string   `json:"description"`
+	Topics      []string `json:"topics"`
+}
+
+// GetProjectDescription retrieves the description of a GitLab project.
+func (a *App) GetProjectDescription(projectPath string) (*ProjectInfo, error) {
+	a.logger.Debug("Getting project description", "project_path", projectPath)
+	
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	
+	result := &ProjectInfo{
+		ID:          project.ID,
+		Name:        project.Name,
+		Path:        project.Path,
+		Description: project.Description,
+	}
+	
+	a.logger.Info("Successfully retrieved project description", 
+		"project_id", project.ID, 
+		"project_path", projectPath)
+	return result, nil
+}
+
+// UpdateProjectDescription updates the description of a GitLab project.
+func (a *App) UpdateProjectDescription(projectPath string, description string) (*ProjectInfo, error) {
+	a.logger.Debug("Updating project description", "project_path", projectPath)
+	
+	// Get project by path first to get the ID
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
+	
+	// Create update options
+	updateOpts := &gitlab.EditProjectOptions{
+		Description: &description,
+	}
+	
+	// Update the project
+	updatedProject, _, err := a.client.Projects().EditProject(projectID, updateOpts)
+	if err != nil {
+		a.logger.Error("Failed to update project description", "error", err, "project_id", projectID)
+		return nil, fmt.Errorf("failed to update project description: %w", err)
+	}
+	
+	result := &ProjectInfo{
+		ID:          updatedProject.ID,
+		Name:        updatedProject.Name,
+		Path:        updatedProject.Path,
+		Description: updatedProject.Description,
+		Topics:      updatedProject.Topics,
+	}
+	
+	a.logger.Info("Successfully updated project description", 
+		"project_id", projectID, 
+		"project_path", projectPath)
+	return result, nil
+}
+
+// GetProjectTopics retrieves the topics of a GitLab project.
+func (a *App) GetProjectTopics(projectPath string) (*ProjectInfo, error) {
+	a.logger.Debug("Getting project topics", "project_path", projectPath)
+	
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	
+	result := &ProjectInfo{
+		ID:     project.ID,
+		Name:   project.Name,
+		Path:   project.Path,
+		Topics: project.Topics,
+	}
+	
+	a.logger.Info("Successfully retrieved project topics", 
+		"project_id", project.ID, 
+		"project_path", projectPath,
+		"topics_count", len(project.Topics))
+	return result, nil
+}
+
+// UpdateProjectTopics updates the topics of a GitLab project.
+func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*ProjectInfo, error) {
+	a.logger.Debug("Updating project topics", "project_path", projectPath, "topics", topics)
+	
+	// Get project by path first to get the ID
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
+	
+	// Create update options
+	updateOpts := &gitlab.EditProjectOptions{
+		Topics: &topics,
+	}
+	
+	// Update the project
+	updatedProject, _, err := a.client.Projects().EditProject(projectID, updateOpts)
+	if err != nil {
+		a.logger.Error("Failed to update project topics", "error", err, "project_id", projectID)
+		return nil, fmt.Errorf("failed to update project topics: %w", err)
+	}
+	
+	result := &ProjectInfo{
+		ID:          updatedProject.ID,
+		Name:        updatedProject.Name,
+		Path:        updatedProject.Path,
+		Description: updatedProject.Description,
+		Topics:      updatedProject.Topics,
+	}
+	
+	a.logger.Info("Successfully updated project topics", 
+		"project_id", projectID, 
+		"project_path", projectPath,
+		"topics_count", len(updatedProject.Topics))
+	return result, nil
+}
+
 // validateMergeRequestOptions validates the required merge request options.
 func (a *App) validateMergeRequestOptions(opts *CreateMergeRequestOptions) error {
 	if opts == nil {

@@ -1475,3 +1475,468 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 		})
 	}
 }
+
+func TestApp_GetProjectDescription(t *testing.T) {
+	tests := []struct {
+		name        string
+		projectPath string
+		setup       func(*MockGitLabClient, *MockProjectsService)
+		want        *ProjectInfo
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "successful get project description",
+			projectPath: "test/project",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:          123,
+						Name:        "Test Project",
+						Path:        "project",
+						Description: "This is a test project description",
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &ProjectInfo{
+				ID:          123,
+				Name:        "Test Project",
+				Path:        "project",
+				Description: "This is a test project description",
+			},
+			wantErr: false,
+		},
+		{
+			name:        "project not found",
+			projectPath: "nonexistent/project",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to get project",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			
+			tc.setup(mockClient, mockProjects)
+			
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			
+			got, err := app.GetProjectDescription(tc.projectPath)
+			
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errMsg != "" {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
+				return
+			}
+			
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_UpdateProjectDescription(t *testing.T) {
+	tests := []struct {
+		name        string
+		projectPath string
+		description string
+		setup       func(*MockGitLabClient, *MockProjectsService)
+		want        *ProjectInfo
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "successful update project description",
+			projectPath: "test/project",
+			description: "Updated project description",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects).Times(2)
+				
+				// First call to get project ID
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:   123,
+						Name: "Test Project",
+						Path: "project",
+					}, &gitlab.Response{}, nil,
+				)
+				
+				// Second call to update project
+				expectedOpts := &gitlab.EditProjectOptions{
+					Description: gitlab.Ptr("Updated project description"),
+				}
+				projects.On("EditProject", 123, expectedOpts).Return(
+					&gitlab.Project{
+						ID:          123,
+						Name:        "Test Project",
+						Path:        "project",
+						Description: "Updated project description",
+						Topics:      []string{"topic1", "topic2"},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &ProjectInfo{
+				ID:          123,
+				Name:        "Test Project",
+				Path:        "project",
+				Description: "Updated project description",
+				Topics:      []string{"topic1", "topic2"},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "project not found",
+			projectPath: "nonexistent/project",
+			description: "New description",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to get project",
+		},
+		{
+			name:        "update fails",
+			projectPath: "test/project",
+			description: "New description",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects).Times(2)
+				
+				// First call to get project ID
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:   123,
+						Name: "Test Project",
+						Path: "project",
+					}, &gitlab.Response{}, nil,
+				)
+				
+				// Second call to update project fails
+				expectedOpts := &gitlab.EditProjectOptions{
+					Description: gitlab.Ptr("New description"),
+				}
+				projects.On("EditProject", 123, expectedOpts).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("403 Forbidden"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to update project description",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			
+			tc.setup(mockClient, mockProjects)
+			
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			
+			got, err := app.UpdateProjectDescription(tc.projectPath, tc.description)
+			
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errMsg != "" {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
+				return
+			}
+			
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_GetProjectTopics(t *testing.T) {
+	tests := []struct {
+		name        string
+		projectPath string
+		setup       func(*MockGitLabClient, *MockProjectsService)
+		want        *ProjectInfo
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "successful get project topics",
+			projectPath: "test/project",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:     123,
+						Name:   "Test Project",
+						Path:   "project",
+						Topics: []string{"golang", "mcp", "gitlab"},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &ProjectInfo{
+				ID:     123,
+				Name:   "Test Project",
+				Path:   "project",
+				Topics: []string{"golang", "mcp", "gitlab"},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "project with no topics",
+			projectPath: "test/project",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:     123,
+						Name:   "Test Project",
+						Path:   "project",
+						Topics: []string{},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &ProjectInfo{
+				ID:     123,
+				Name:   "Test Project",
+				Path:   "project",
+				Topics: []string{},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "project not found",
+			projectPath: "nonexistent/project",
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to get project",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			
+			tc.setup(mockClient, mockProjects)
+			
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			
+			got, err := app.GetProjectTopics(tc.projectPath)
+			
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errMsg != "" {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
+				return
+			}
+			
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_UpdateProjectTopics(t *testing.T) {
+	tests := []struct {
+		name        string
+		projectPath string
+		topics      []string
+		setup       func(*MockGitLabClient, *MockProjectsService)
+		want        *ProjectInfo
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "successful update project topics",
+			projectPath: "test/project",
+			topics:      []string{"golang", "api", "mcp"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects).Times(2)
+				
+				// First call to get project ID
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:   123,
+						Name: "Test Project",
+						Path: "project",
+					}, &gitlab.Response{}, nil,
+				)
+				
+				// Second call to update project
+				expectedTopics := []string{"golang", "api", "mcp"}
+				expectedOpts := &gitlab.EditProjectOptions{
+					Topics: &expectedTopics,
+				}
+				projects.On("EditProject", 123, expectedOpts).Return(
+					&gitlab.Project{
+						ID:          123,
+						Name:        "Test Project",
+						Path:        "project",
+						Description: "Test description",
+						Topics:      []string{"golang", "api", "mcp"},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &ProjectInfo{
+				ID:          123,
+				Name:        "Test Project",
+				Path:        "project",
+				Description: "Test description",
+				Topics:      []string{"golang", "api", "mcp"},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "clear all topics",
+			projectPath: "test/project",
+			topics:      []string{},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects).Times(2)
+				
+				// First call to get project ID
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:   123,
+						Name: "Test Project",
+						Path: "project",
+					}, &gitlab.Response{}, nil,
+				)
+				
+				// Second call to update project with empty topics
+				expectedTopics := []string{}
+				expectedOpts := &gitlab.EditProjectOptions{
+					Topics: &expectedTopics,
+				}
+				projects.On("EditProject", 123, expectedOpts).Return(
+					&gitlab.Project{
+						ID:          123,
+						Name:        "Test Project",
+						Path:        "project",
+						Description: "Test description",
+						Topics:      []string{},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &ProjectInfo{
+				ID:          123,
+				Name:        "Test Project",
+				Path:        "project",
+				Description: "Test description",
+				Topics:      []string{},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "project not found",
+			projectPath: "nonexistent/project",
+			topics:      []string{"topic1"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects)
+				
+				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to get project",
+		},
+		{
+			name:        "update fails",
+			projectPath: "test/project",
+			topics:      []string{"topic1"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
+				client.On("Projects").Return(projects).Times(2)
+				
+				// First call to get project ID
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{
+						ID:   123,
+						Name: "Test Project",
+						Path: "project",
+					}, &gitlab.Response{}, nil,
+				)
+				
+				// Second call to update project fails
+				expectedTopics := []string{"topic1"}
+				expectedOpts := &gitlab.EditProjectOptions{
+					Topics: &expectedTopics,
+				}
+				projects.On("EditProject", 123, expectedOpts).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("403 Forbidden"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to update project topics",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			
+			tc.setup(mockClient, mockProjects)
+			
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			
+			got, err := app.UpdateProjectTopics(tc.projectPath, tc.topics)
+			
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errMsg != "" {
+					assert.Contains(t, err.Error(), tc.errMsg)
+				}
+				return
+			}
+			
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+			
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+		})
+	}
+}

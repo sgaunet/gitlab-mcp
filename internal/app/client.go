@@ -69,6 +69,17 @@ func (p *ProjectsServiceWrapper) GetProject(
 	return project, resp, nil
 }
 
+func (p *ProjectsServiceWrapper) EditProject(
+	pid interface{}, 
+	opt *gitlab.EditProjectOptions,
+) (*gitlab.Project, *gitlab.Response, error) {
+	project, resp, err := p.service.EditProject(pid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return project, resp, nil
+}
+
 // IssuesServiceWrapper wraps the real Issues service.
 type IssuesServiceWrapper struct {
 	service gitlab.IssuesServiceInterface
