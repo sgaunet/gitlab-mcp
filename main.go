@@ -740,20 +740,25 @@ func extractCreateMergeRequestOptions(
 	return opts
 }
 
-// setupGetProjectDescriptionTool creates and registers the get_project_description tool.
-func setupGetProjectDescriptionTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
-	getProjectDescriptionTool := mcp.NewTool("get_project_description",
-		mcp.WithDescription("Get the description of a GitLab project by project path"),
+// setupProjectInfoTool creates a generic project info tool handler.
+func setupProjectInfoTool(
+	s *server.MCPServer,
+	debugLogger *slog.Logger,
+	toolName, toolDescription, actionLog, errorLog, successLog string,
+	handler func(string) (*app.ProjectInfo, error),
+) {
+	tool := mcp.NewTool(toolName,
+		mcp.WithDescription(toolDescription),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 	)
 
-	s.AddTool(getProjectDescriptionTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()
-		debugLogger.Debug("Received get_project_description tool request", "args", args)
+		debugLogger.Debug("Received "+toolName+" tool request", "args", args)
 
 		// Extract project_path
 		projectPath, ok := args["project_path"].(string)
@@ -762,13 +767,13 @@ func setupGetProjectDescriptionTool(s *server.MCPServer, appInstance *app.App, d
 			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
 		}
 
-		debugLogger.Debug("Processing get_project_description request", "project_path", projectPath)
+		debugLogger.Debug("Processing "+actionLog+" request", "project_path", projectPath)
 
 		// Call the app method
-		projectInfo, err := appInstance.GetProjectDescription(projectPath)
+		projectInfo, err := handler(projectPath)
 		if err != nil {
-			debugLogger.Error("Failed to get project description", "error", err, "project_path", projectPath)
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to get project description: %v", err)), nil
+			debugLogger.Error(errorLog, "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf(errorLog+": %v", err)), nil
 		}
 
 		// Convert to JSON
@@ -778,9 +783,22 @@ func setupGetProjectDescriptionTool(s *server.MCPServer, appInstance *app.App, d
 			return mcp.NewToolResultError("Failed to format project info response"), nil
 		}
 
-		debugLogger.Info("Successfully retrieved project description", "project_path", projectPath)
+		debugLogger.Info(successLog, "project_path", projectPath)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	})
+}
+
+// setupGetProjectDescriptionTool creates and registers the get_project_description tool.
+func setupGetProjectDescriptionTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	setupProjectInfoTool(
+		s, debugLogger,
+		"get_project_description",
+		"Get the description of a GitLab project by project path",
+		"get_project_description",
+		"Failed to get project description",
+		"Successfully retrieved project description",
+		appInstance.GetProjectDescription,
+	)
 }
 
 // setupUpdateProjectDescriptionTool creates and registers the update_project_description tool.
@@ -798,7 +816,9 @@ func setupUpdateProjectDescriptionTool(s *server.MCPServer, appInstance *app.App
 		),
 	)
 
-	s.AddTool(updateProjectDescriptionTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.AddTool(updateProjectDescriptionTool, func(ctx context.Context, request mcp.CallToolRequest) (
+		*mcp.CallToolResult, error,
+	) {
 		args := request.GetArguments()
 		debugLogger.Debug("Received update_project_description tool request", "args", args)
 
@@ -839,45 +859,15 @@ func setupUpdateProjectDescriptionTool(s *server.MCPServer, appInstance *app.App
 
 // setupGetProjectTopicsTool creates and registers the get_project_topics tool.
 func setupGetProjectTopicsTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
-	getProjectTopicsTool := mcp.NewTool("get_project_topics",
-		mcp.WithDescription("Get the topics/tags of a GitLab project by project path"),
-		mcp.WithString("project_path",
-			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
-				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
-		),
+	setupProjectInfoTool(
+		s, debugLogger,
+		"get_project_topics",
+		"Get the topics/tags of a GitLab project by project path",
+		"get_project_topics",
+		"Failed to get project topics",
+		"Successfully retrieved project topics",
+		appInstance.GetProjectTopics,
 	)
-
-	s.AddTool(getProjectTopicsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args := request.GetArguments()
-		debugLogger.Debug("Received get_project_topics tool request", "args", args)
-
-		// Extract project_path
-		projectPath, ok := args["project_path"].(string)
-		if !ok || projectPath == "" {
-			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
-			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
-		}
-
-		debugLogger.Debug("Processing get_project_topics request", "project_path", projectPath)
-
-		// Call the app method
-		projectInfo, err := appInstance.GetProjectTopics(projectPath)
-		if err != nil {
-			debugLogger.Error("Failed to get project topics", "error", err, "project_path", projectPath)
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to get project topics: %v", err)), nil
-		}
-
-		// Convert to JSON
-		jsonData, err := json.Marshal(projectInfo)
-		if err != nil {
-			debugLogger.Error("Failed to marshal project info to JSON", "error", err)
-			return mcp.NewToolResultError("Failed to format project info response"), nil
-		}
-
-		debugLogger.Info("Successfully retrieved project topics", "project_path", projectPath)
-		return mcp.NewToolResultText(string(jsonData)), nil
-	})
 }
 
 // setupUpdateProjectTopicsTool creates and registers the update_project_topics tool.
@@ -895,7 +885,9 @@ func setupUpdateProjectTopicsTool(s *server.MCPServer, appInstance *app.App, deb
 		),
 	)
 
-	s.AddTool(updateProjectTopicsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s.AddTool(updateProjectTopicsTool, func(ctx context.Context, request mcp.CallToolRequest) (
+		*mcp.CallToolResult, error,
+	) {
 		args := request.GetArguments()
 		debugLogger.Debug("Received update_project_topics tool request", "args", args)
 
@@ -992,29 +984,32 @@ For more information, visit: https://github.com/sgaunet/gitlab-mcp
 `, version)
 }
 
-func main() {
-	// Parse command line flags
+// handleCommandLineFlags processes command line arguments and exits if necessary.
+func handleCommandLineFlags() {
 	var (
-		showHelp    = flag.Bool("h", false, "Show help message")
-		showHelpLong = flag.Bool("help", false, "Show help message")
-		showVersion = flag.Bool("v", false, "Show version information") 
+		showHelp        = flag.Bool("h", false, "Show help message")
+		showHelpLong    = flag.Bool("help", false, "Show help message")
+		showVersion     = flag.Bool("v", false, "Show version information")
 		showVersionLong = flag.Bool("version", false, "Show version information")
 	)
-	
+
 	flag.Parse()
-	
+
 	// Handle help flags
 	if *showHelp || *showHelpLong {
 		printHelp()
 		os.Exit(0)
 	}
-	
+
 	// Handle version flags
 	if *showVersion || *showVersionLong {
 		fmt.Printf("%s\n", version)
 		os.Exit(0)
 	}
+}
 
+// initializeApp creates and configures the application instance.
+func initializeApp() (*app.App, *slog.Logger) {
 	// Initialize the app
 	appInstance, err := app.New()
 	if err != nil {
@@ -1024,13 +1019,34 @@ func main() {
 	// Set debug logger
 	debugLogger := logger.NewLogger("debug")
 	appInstance.SetLogger(debugLogger)
-	
+
 	debugLogger.Info("Starting GitLab MCP Server", "version", version)
 
 	// Validate connection
 	if err := appInstance.ValidateConnection(); err != nil {
 		log.Fatalf("Failed to validate GitLab connection: %v", err)
 	}
+
+	return appInstance, debugLogger
+}
+
+// registerAllTools registers all available tools with the MCP server.
+func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	setupListIssuesTool(s, appInstance, debugLogger)
+	setupCreateIssueTool(s, appInstance, debugLogger)
+	setupUpdateIssueTool(s, appInstance, debugLogger)
+	setupListLabelsTool(s, appInstance, debugLogger)
+	setupAddIssueNoteTool(s, appInstance, debugLogger)
+	setupCreateMergeRequestTool(s, appInstance, debugLogger)
+	setupGetProjectDescriptionTool(s, appInstance, debugLogger)
+	setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)
+	setupGetProjectTopicsTool(s, appInstance, debugLogger)
+	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
+}
+
+func main() {
+	handleCommandLineFlags()
+	appInstance, debugLogger := initializeApp()
 
 	// Create MCP server
 	s := server.NewMCPServer(
@@ -1040,35 +1056,7 @@ func main() {
 		server.WithResourceCapabilities(true, false),
 	)
 
-	// Create and register list_issues tool
-	setupListIssuesTool(s, appInstance, debugLogger)
-
-	// Create and register create_issues tool
-	setupCreateIssueTool(s, appInstance, debugLogger)
-
-	// Create and register update_issues tool
-	setupUpdateIssueTool(s, appInstance, debugLogger)
-
-	// Create and register list_labels tool
-	setupListLabelsTool(s, appInstance, debugLogger)
-
-	// Create and register add_issue_note tool
-	setupAddIssueNoteTool(s, appInstance, debugLogger)
-
-	// Create and register create_merge_request tool
-	setupCreateMergeRequestTool(s, appInstance, debugLogger)
-
-	// Create and register get_project_description tool
-	setupGetProjectDescriptionTool(s, appInstance, debugLogger)
-
-	// Create and register update_project_description tool
-	setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)
-
-	// Create and register get_project_topics tool
-	setupGetProjectTopicsTool(s, appInstance, debugLogger)
-
-	// Create and register update_project_topics tool
-	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
+	registerAllTools(s, appInstance, debugLogger)
 
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {
