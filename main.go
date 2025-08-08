@@ -740,6 +740,211 @@ func extractCreateMergeRequestOptions(
 	return opts
 }
 
+// setupGetProjectDescriptionTool creates and registers the get_project_description tool.
+func setupGetProjectDescriptionTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	getProjectDescriptionTool := mcp.NewTool("get_project_description",
+		mcp.WithDescription("Get the description of a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+	)
+
+	s.AddTool(getProjectDescriptionTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received get_project_description tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		debugLogger.Debug("Processing get_project_description request", "project_path", projectPath)
+
+		// Call the app method
+		projectInfo, err := appInstance.GetProjectDescription(projectPath)
+		if err != nil {
+			debugLogger.Error("Failed to get project description", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get project description: %v", err)), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(projectInfo)
+		if err != nil {
+			debugLogger.Error("Failed to marshal project info to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format project info response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved project description", "project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	})
+}
+
+// setupUpdateProjectDescriptionTool creates and registers the update_project_description tool.
+func setupUpdateProjectDescriptionTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	updateProjectDescriptionTool := mcp.NewTool("update_project_description",
+		mcp.WithDescription("Update the description of a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+		mcp.WithString("description",
+			mcp.Required(),
+			mcp.Description("The new description for the project"),
+		),
+	)
+
+	s.AddTool(updateProjectDescriptionTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received update_project_description tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract description
+		description, ok := args["description"].(string)
+		if !ok {
+			debugLogger.Error("description is not a valid string", "value", args["description"])
+			return mcp.NewToolResultError("description must be a string"), nil
+		}
+
+		debugLogger.Debug("Processing update_project_description request", "project_path", projectPath)
+
+		// Call the app method
+		projectInfo, err := appInstance.UpdateProjectDescription(projectPath, description)
+		if err != nil {
+			debugLogger.Error("Failed to update project description", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to update project description: %v", err)), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(projectInfo)
+		if err != nil {
+			debugLogger.Error("Failed to marshal project info to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format project info response"), nil
+		}
+
+		debugLogger.Info("Successfully updated project description", "project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	})
+}
+
+// setupGetProjectTopicsTool creates and registers the get_project_topics tool.
+func setupGetProjectTopicsTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	getProjectTopicsTool := mcp.NewTool("get_project_topics",
+		mcp.WithDescription("Get the topics/tags of a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+	)
+
+	s.AddTool(getProjectTopicsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received get_project_topics tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		debugLogger.Debug("Processing get_project_topics request", "project_path", projectPath)
+
+		// Call the app method
+		projectInfo, err := appInstance.GetProjectTopics(projectPath)
+		if err != nil {
+			debugLogger.Error("Failed to get project topics", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get project topics: %v", err)), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(projectInfo)
+		if err != nil {
+			debugLogger.Error("Failed to marshal project info to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format project info response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved project topics", "project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	})
+}
+
+// setupUpdateProjectTopicsTool creates and registers the update_project_topics tool.
+func setupUpdateProjectTopicsTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	updateProjectTopicsTool := mcp.NewTool("update_project_topics",
+		mcp.WithDescription("Update the topics/tags of a GitLab project (replaces all existing topics)"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+		mcp.WithArray("topics",
+			mcp.Required(),
+			mcp.Description("Array of topic strings to set for the project (replaces all existing topics)"),
+		),
+	)
+
+	s.AddTool(updateProjectTopicsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received update_project_topics tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract topics
+		topicsInterface, ok := args["topics"].([]interface{})
+		if !ok {
+			debugLogger.Error("topics is not an array", "value", args["topics"])
+			return mcp.NewToolResultError("topics must be an array of strings"), nil
+		}
+
+		// Convert interface array to string array
+		topics := make([]string, 0, len(topicsInterface))
+		for _, topic := range topicsInterface {
+			if topicStr, ok := topic.(string); ok {
+				topics = append(topics, topicStr)
+			} else {
+				debugLogger.Error("topic item is not a string", "value", topic)
+				return mcp.NewToolResultError("all topics must be strings"), nil
+			}
+		}
+
+		debugLogger.Debug("Processing update_project_topics request", "project_path", projectPath, "topics", topics)
+
+		// Call the app method
+		projectInfo, err := appInstance.UpdateProjectTopics(projectPath, topics)
+		if err != nil {
+			debugLogger.Error("Failed to update project topics", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to update project topics: %v", err)), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(projectInfo)
+		if err != nil {
+			debugLogger.Error("Failed to marshal project info to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format project info response"), nil
+		}
+
+		debugLogger.Info("Successfully updated project topics", "project_path", projectPath, "topics_count", len(topics))
+		return mcp.NewToolResultText(string(jsonData)), nil
+	})
+}
+
 func printHelp() {
 	fmt.Printf(`GitLab MCP Server %s
 
@@ -759,12 +964,16 @@ ENVIRONMENT VARIABLES:
 DESCRIPTION:
     This MCP server provides the following tools for GitLab integration:
     
-    • list_issues           - List issues for a GitLab project
-    • create_issues         - Create new issues with metadata
-    • update_issues         - Update existing issues
-    • list_labels           - List project labels with filtering
-    • add_issue_note        - Add notes/comments to existing issues
-    • create_merge_request  - Create new merge requests
+    • list_issues              - List issues for a GitLab project
+    • create_issues            - Create new issues with metadata
+    • update_issues            - Update existing issues
+    • list_labels              - List project labels with filtering
+    • add_issue_note           - Add notes/comments to existing issues
+    • create_merge_request     - Create new merge requests
+    • get_project_description  - Get the description of a project
+    • update_project_description - Update the project description
+    • get_project_topics       - Get the topics/tags of a project
+    • update_project_topics    - Update the project topics (replaces all)
     
     The server communicates via JSON-RPC 2.0 over stdin/stdout and is designed
     to be used with Claude Code's MCP architecture.
@@ -848,6 +1057,18 @@ func main() {
 
 	// Create and register create_merge_request tool
 	setupCreateMergeRequestTool(s, appInstance, debugLogger)
+
+	// Create and register get_project_description tool
+	setupGetProjectDescriptionTool(s, appInstance, debugLogger)
+
+	// Create and register update_project_description tool
+	setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)
+
+	// Create and register get_project_topics tool
+	setupGetProjectTopicsTool(s, appInstance, debugLogger)
+
+	// Create and register update_project_topics tool
+	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
 
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {

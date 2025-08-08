@@ -71,6 +71,16 @@ func (m *MockProjectsService) GetProject(
 	return project, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockProjectsService) EditProject(
+	pid interface{}, 
+	opt *gitlab.EditProjectOptions,
+) (*gitlab.Project, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	project, _ := args.Get(0).(*gitlab.Project)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return project, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 // MockIssuesService is a mock implementation of IssuesService.
 type MockIssuesService struct {
 	mock.Mock

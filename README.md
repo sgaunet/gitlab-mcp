@@ -19,6 +19,10 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 - **List Labels**: List project labels with optional filtering and counts
 - **Add Issue Notes**: Add comments/notes to existing issues
 - **Create Merge Requests**: Create new merge requests with source/target branches, title, description, assignees, reviewers, and labels
+- **Get Project Description**: Retrieve the current description of a GitLab project
+- **Update Project Description**: Update the description of a GitLab project
+- **Get Project Topics**: Retrieve the current topics/tags of a GitLab project
+- **Update Project Topics**: Update the topics/tags of a GitLab project (replaces all existing topics)
 - Direct project path access - no need to resolve project IDs
 - Compatible with Claude Code's MCP architecture
 
@@ -295,6 +299,90 @@ Returns a JSON object of the created merge request containing:
 - `draft`: Boolean indicating if this is a draft MR
 - `created_at`: Creation timestamp
 - `updated_at`: Last update timestamp
+
+### get_project_description
+
+Retrieves the description of a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
+
+**Examples:**
+```
+Get the project description for namespace/project_name
+```
+
+**Response Format:**
+Returns a JSON object containing:
+- `id`: Project ID
+- `name`: Project name
+- `path`: Project path
+- `description`: Project description
+
+### update_project_description
+
+Updates the description of a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
+- `description` (string, required): The new description for the project
+
+**Examples:**
+```
+Update the description of namespace/project_name to "A new and improved project description"
+```
+
+**Response Format:**
+Returns a JSON object containing:
+- `id`: Project ID
+- `name`: Project name
+- `path`: Project path
+- `description`: Updated project description
+- `topics`: Array of project topics
+
+### get_project_topics
+
+Retrieves the topics/tags of a GitLab project.
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
+
+**Examples:**
+```
+Get the topics for namespace/project_name
+```
+
+**Response Format:**
+Returns a JSON object containing:
+- `id`: Project ID
+- `name`: Project name
+- `path`: Project path
+- `topics`: Array of topic strings
+
+### update_project_topics
+
+Updates the topics/tags of a GitLab project (replaces all existing topics).
+
+**Parameters:**
+- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
+- `topics` (array, required): Array of topic strings to set for the project (replaces all existing topics)
+
+**Examples:**
+```
+Update the topics of namespace/project_name to ["golang", "mcp", "gitlab", "api"]
+```
+
+```
+Remove all topics from namespace/project_name by setting an empty array []
+```
+
+**Response Format:**
+Returns a JSON object containing:
+- `id`: Project ID
+- `name`: Project name
+- `path`: Project path
+- `description`: Project description
+- `topics`: Updated array of topic strings
 
 ## Development
 

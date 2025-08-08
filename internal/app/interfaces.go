@@ -7,6 +7,7 @@ import (
 // ProjectsService interface for GitLab Projects operations.
 type ProjectsService interface {
 	GetProject(pid interface{}, opt *gitlab.GetProjectOptions) (*gitlab.Project, *gitlab.Response, error)
+	EditProject(pid interface{}, opt *gitlab.EditProjectOptions) (*gitlab.Project, *gitlab.Response, error)
 }
 
 // IssuesService interface for GitLab Issues operations.
