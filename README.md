@@ -39,6 +39,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 ```bash
 # Add the tap and install
+brew tap sgaunet/homebrew-tools
 brew install sgaunet/tools/gitlab-mcp
 ```
 
