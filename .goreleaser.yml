@@ -153,6 +153,6 @@ brews:
       token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
     url_template: 'https://github.com/sgaunet/gitlab-mcp/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
     install: |
-      bin.install "gitlab-mcp"
+      bin.install "{{ .ArtifactName }}" => "gitlab-mcp"
     test: |
       system "#{bin}/gitlab-mcp", "-h"
