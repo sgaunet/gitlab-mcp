@@ -87,6 +87,22 @@ brew install sgaunet/tools/gitlab-mcp
    sudo mv gitlab-mcp /usr/local/bin/
    ```
 
+### Configuration
+
+The MCP server requires a GitLab personal access token (PAT) with appropriate scopes (e.g., `api`, `read_api`, `write_api`) to interact with the GitLab API.
+Set the `GITLAB_TOKEN` environment variable with your PAT:
+
+```bash
+export GITLAB_TOKEN=your_personal_access_token
+```
+You can also set the `GITLAB_URI` environment variable if you're using a self-hosted GitLab instance (default is `https://gitlab.com`):
+
+```bash
+export GITLAB_URI=https://your.gitlab.instance
+```
+
+The easiest way to set these variables permanently is to add them to your shell profile (e.g., `~/.bashrc`, `~/.zshrc`). It avoids issues with environment variables not being available when Claude Code starts the MCP server.
+
 ### Add to Claude Code
 
 After installation, add the MCP server to Claude Code:
