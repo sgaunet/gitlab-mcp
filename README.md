@@ -5,6 +5,7 @@
 [![coverage](https://github.com/sgaunet/gitlab-mcp/actions/workflows/coverage.yml/badge.svg)](https://github.com/sgaunet/gitlab-mcp/actions/workflows/coverage.yml)
 [![Snapshot Build](https://github.com/sgaunet/gitlab-mcp/actions/workflows/snapshot.yml/badge.svg)](https://github.com/sgaunet/gitlab-mcp/actions/workflows/snapshot.yml)
 [![Release Build](https://github.com/sgaunet/gitlab-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/sgaunet/gitlab-mcp/actions/workflows/release.yml)
+[![Vulnerability Scan](https://github.com/sgaunet/gitlab-mcp/actions/workflows/vulnerability-scan.yml/badge.svg)](https://github.com/sgaunet/gitlab-mcp/actions/workflows/vulnerability-scan.yml)
 [![License](https://img.shields.io/github/license/sgaunet/gitlab-mcp.svg)](LICENSE)
 
 # GitLab MCP Server
