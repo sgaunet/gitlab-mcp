@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/mark3labs/mcp-go v0.40.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	gitlab.com/gitlab-org/api/client-go v0.134.0
 )
 
