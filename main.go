@@ -115,7 +115,8 @@ func setupCreateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 			mcp.Description("Issue description"),
 		),
 		mcp.WithArray("labels",
-			mcp.Description("Array of labels to assign to the issue. Labels must exist in the project. Use list_labels tool to see available labels. Set GITLAB_VALIDATE_LABELS=false to disable validation."),
+			mcp.Description("Array of labels to assign to the issue. Labels must exist in the project. "+
+				"Use list_labels tool to see available labels. Set GITLAB_VALIDATE_LABELS=false to disable validation."),
 		),
 		mcp.WithArray("assignees",
 			mcp.Description("Array of user IDs to assign to the issue"),
