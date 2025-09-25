@@ -102,6 +102,13 @@ You can also set the `GITLAB_URI` environment variable if you're using a self-ho
 export GITLAB_URI=https://your.gitlab.instance
 ```
 
+You can also configure label validation behavior with the `GITLAB_VALIDATE_LABELS` environment variable:
+
+```bash
+export GITLAB_VALIDATE_LABELS=true   # Default: Enable label validation
+export GITLAB_VALIDATE_LABELS=false  # Disable label validation for backward compatibility
+```
+
 The easiest way to set these variables permanently is to add them to your shell profile (e.g., `~/.bashrc`, `~/.zshrc`). It avoids issues with environment variables not being available when Claude Code starts the MCP server.
 
 ### Add to Claude Code
@@ -177,6 +184,23 @@ Create an issue with title "Bug fix needed" for project namespace/project_name
 ```
 Create an issue with title "Feature request", description "Add new functionality", and labels ["enhancement", "feature"] for project namespace/project_name
 ```
+
+**Label Validation:**
+By default, the server validates that labels exist in the project before creating issues. If any labels don't exist, the issue creation fails with a helpful error message listing missing labels and all available labels in the project.
+
+Example validation error:
+```
+The following labels do not exist in project 'namespace/project':
+- 'nonexistent-label'
+- 'typo-label'
+
+Available labels in this project:
+- bug, enhancement, documentation, priority-high, priority-medium, priority-low
+
+To disable label validation, set GITLAB_VALIDATE_LABELS=false
+```
+
+To see available labels before creating issues, use the `list_labels` tool. Label validation can be disabled by setting `GITLAB_VALIDATE_LABELS=false` in your environment.
 
 **Response Format:**
 Returns a JSON object of the created issue with the same structure as list_issues.
@@ -456,7 +480,15 @@ Run the test script:
 
 ## Configuration
 
-The MCP server runs as a subprocess and communicates via JSON-RPC over stdin/stdout. No additional configuration is required.
+The MCP server runs as a subprocess and communicates via JSON-RPC over stdin/stdout. Configuration is done through environment variables:
+
+### Environment Variables
+
+- **`GITLAB_TOKEN`** (required): GitLab personal access token with appropriate scopes (`api`, `read_api`, `write_api`)
+- **`GITLAB_URI`** (optional): GitLab instance URI (default: `https://gitlab.com/`)
+- **`GITLAB_VALIDATE_LABELS`** (optional): Enable/disable label validation for issue creation (default: `true`)
+  - `true`: Validates that labels exist in the project before creating issues
+  - `false`: Allows creating issues with non-existent labels (GitLab's default behavior)
 
 ### MCP Transport Protocol
 

@@ -370,11 +370,28 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 				Assignees:   []int{1, 2},
 			},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
-				client.On("Projects").Return(projects)
+				mockLabels := &MockLabelsService{}
+				client.On("Projects").Return(projects).Times(2) // Once for create, once for validation
 				client.On("Issues").Return(issues)
-				
+				client.On("Labels").Return(mockLabels)
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				).Times(2)
+
+				// Mock for label validation
+				listOpts := &gitlab.ListLabelsOptions{
+					WithCounts:            gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(false),
+					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+				mockLabels.On("ListLabels", 123, listOpts).Return(
+					[]*gitlab.Label{
+						{ID: 1, Name: "bug"},
+						{ID: 2, Name: "priority-high"},
+						{ID: 3, Name: "enhancement"},
+					},
+					&gitlab.Response{}, nil,
 				)
 				
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "priority-high"})
@@ -459,6 +476,221 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockIssues.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name           string
+		validateLabels bool
+		issueLabels    []string
+		setup          func(*MockGitLabClient, *MockProjectsService, *MockIssuesService, *MockLabelsService)
+		wantErr        bool
+		wantErrContains string
+	}{
+		{
+			name:           "validation disabled - should succeed with non-existent labels",
+			validateLabels: false,
+			issueLabels:    []string{"non-existent-label"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				client.On("Projects").Return(projects)
+				client.On("Issues").Return(issues)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedLabels := gitlab.LabelOptions([]string{"non-existent-label"})
+				expectedOpts := &gitlab.CreateIssueOptions{
+					Title:       gitlab.Ptr("Test Issue"),
+					Description: gitlab.Ptr(""),
+					Labels:      &expectedLabels,
+				}
+
+				issues.On("CreateIssue", 123, expectedOpts).Return(
+					&gitlab.Issue{
+						ID:        1,
+						IID:       1,
+						Title:     "Test Issue",
+						State:     "opened",
+						Labels:    []string{}, // GitLab ignores non-existent labels
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			wantErr: false,
+		},
+		{
+			name:           "validation enabled - should succeed with existing labels",
+			validateLabels: true,
+			issueLabels:    []string{"bug", "enhancement"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				client.On("Projects").Return(projects).Times(2) // Once for create, once for validation
+				client.On("Issues").Return(issues)
+				client.On("Labels").Return(labels)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				).Times(2)
+
+				// Mock for label validation
+				listOpts := &gitlab.ListLabelsOptions{
+					WithCounts:            gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(false),
+					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+				labels.On("ListLabels", 123, listOpts).Return(
+					[]*gitlab.Label{
+						{ID: 1, Name: "bug"},
+						{ID: 2, Name: "enhancement"},
+						{ID: 3, Name: "documentation"},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				// Mock for issue creation
+				expectedLabels := gitlab.LabelOptions([]string{"bug", "enhancement"})
+				expectedOpts := &gitlab.CreateIssueOptions{
+					Title:       gitlab.Ptr("Test Issue"),
+					Description: gitlab.Ptr(""),
+					Labels:      &expectedLabels,
+				}
+
+				issues.On("CreateIssue", 123, expectedOpts).Return(
+					&gitlab.Issue{
+						ID:        1,
+						IID:       1,
+						Title:     "Test Issue",
+						State:     "opened",
+						Labels:    []string{"bug", "enhancement"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			wantErr: false,
+		},
+		{
+			name:           "validation enabled - should fail with non-existent labels",
+			validateLabels: true,
+			issueLabels:    []string{"bug", "non-existent-label"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				client.On("Projects").Return(projects)
+				client.On("Labels").Return(labels)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				// Mock for label validation
+				listOpts := &gitlab.ListLabelsOptions{
+					WithCounts:            gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(false),
+					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+				labels.On("ListLabels", 123, listOpts).Return(
+					[]*gitlab.Label{
+						{ID: 1, Name: "bug"},
+						{ID: 2, Name: "enhancement"},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			wantErr: true,
+			wantErrContains: "non-existent-label",
+		},
+		{
+			name:           "validation enabled - case insensitive matching should succeed",
+			validateLabels: true,
+			issueLabels:    []string{"BUG", "Enhancement"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				client.On("Projects").Return(projects).Times(2)
+				client.On("Issues").Return(issues)
+				client.On("Labels").Return(labels)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				).Times(2)
+
+				// Mock for label validation
+				listOpts := &gitlab.ListLabelsOptions{
+					WithCounts:            gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(false),
+					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+				labels.On("ListLabels", 123, listOpts).Return(
+					[]*gitlab.Label{
+						{ID: 1, Name: "bug"},
+						{ID: 2, Name: "enhancement"},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				// Mock for issue creation
+				expectedLabels := gitlab.LabelOptions([]string{"BUG", "Enhancement"})
+				expectedOpts := &gitlab.CreateIssueOptions{
+					Title:       gitlab.Ptr("Test Issue"),
+					Description: gitlab.Ptr(""),
+					Labels:      &expectedLabels,
+				}
+
+				issues.On("CreateIssue", 123, expectedOpts).Return(
+					&gitlab.Issue{
+						ID:        1,
+						IID:       1,
+						Title:     "Test Issue",
+						State:     "opened",
+						Labels:    []string{"BUG", "Enhancement"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockIssues := &MockIssuesService{}
+			mockLabels := &MockLabelsService{}
+
+			tt.setup(mockClient, mockProjects, mockIssues, mockLabels)
+
+			app := NewWithClientAndValidation("token", "https://gitlab.com/", mockClient, tt.validateLabels)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
+
+			opts := &CreateIssueOptions{
+				Title:  "Test Issue",
+				Labels: tt.issueLabels,
+			}
+
+			result, err := app.CreateProjectIssue("test/project", opts)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				if tt.wantErrContains != "" {
+					assert.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockIssues.AssertExpectations(t)
+			mockLabels.AssertExpectations(t)
 		})
 	}
 }

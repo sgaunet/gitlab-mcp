@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
@@ -40,10 +41,11 @@ var (
 )
 
 type App struct {
-	GitLabToken string
-	GitLabURI   string
-	client      GitLabClient
-	logger      *slog.Logger
+	GitLabToken    string
+	GitLabURI      string
+	ValidateLabels bool
+	client         GitLabClient
+	logger         *slog.Logger
 }
 
 func New() (*App, error) {
@@ -61,6 +63,14 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("invalid GitLab URI: %w", err)
 	}
 
+	// Parse validate labels setting (default: true)
+	validateLabels := true
+	if validateStr := os.Getenv("GITLAB_VALIDATE_LABELS"); validateStr != "" {
+		if parsed, err := strconv.ParseBool(validateStr); err == nil {
+			validateLabels = parsed
+		}
+	}
+
 	var client *gitlab.Client
 	var err error
 	if uri == "https://gitlab.com/" {
@@ -74,20 +84,33 @@ func New() (*App, error) {
 	}
 
 	return &App{
-		GitLabToken: token,
-		GitLabURI:   uri,
-		client:      NewGitLabClient(client),
-		logger:      logger.NoLogger(),
+		GitLabToken:    token,
+		GitLabURI:      uri,
+		ValidateLabels: validateLabels,
+		client:         NewGitLabClient(client),
+		logger:         logger.NoLogger(),
 	}, nil
 }
 
 // NewWithClient creates a new App instance with an injected GitLabClient (for testing).
 func NewWithClient(token, uri string, client GitLabClient) *App {
 	return &App{
-		GitLabToken: token,
-		GitLabURI:   uri,
-		client:      client,
-		logger:      logger.NoLogger(),
+		GitLabToken:    token,
+		GitLabURI:      uri,
+		ValidateLabels: true, // default for tests
+		client:         client,
+		logger:         logger.NoLogger(),
+	}
+}
+
+// NewWithClientAndValidation creates a new App instance with an injected GitLabClient and validation setting (for testing).
+func NewWithClientAndValidation(token, uri string, client GitLabClient, validateLabels bool) *App {
+	return &App{
+		GitLabToken:    token,
+		GitLabURI:      uri,
+		ValidateLabels: validateLabels,
+		client:         client,
+		logger:         logger.NoLogger(),
 	}
 }
 
@@ -420,6 +443,13 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	// Add assignees if provided
 	if len(opts.Assignees) > 0 {
 		createOpts.AssigneeIDs = &opts.Assignees
+	}
+
+	// Validate labels if validation is enabled
+	if a.ValidateLabels && len(opts.Labels) > 0 {
+		if err := a.validateLabels(projectID, projectPath, opts.Labels); err != nil {
+			return nil, err
+		}
 	}
 
 	// Call GitLab API
@@ -1009,4 +1039,62 @@ func (a *App) findMilestoneByTitle(projectID int, title string) (int, error) {
 	
 	a.logger.Error("Milestone not found", "title", title)
 	return 0, fmt.Errorf("%w: %s", ErrMilestoneNotFound, title)
+}
+
+// validateLabels checks if the requested labels exist in the project.
+func (a *App) validateLabels(projectID int, projectPath string, requestedLabels []string) error {
+	if len(requestedLabels) == 0 {
+		return nil // No labels to validate
+	}
+
+	a.logger.Debug("Validating labels", "project_id", projectID, "requested_labels", requestedLabels)
+
+	// Get existing labels from the project
+	existingLabels, err := a.ListProjectLabels(projectPath, &ListLabelsOptions{
+		Limit: maxLabelsPerPage,
+	})
+	if err != nil {
+		a.logger.Error("Failed to retrieve existing labels for validation", "error", err, "project_id", projectID)
+		return fmt.Errorf("failed to validate labels: %w", err)
+	}
+
+	// Create a map of existing label names (case-insensitive)
+	existingLabelMap := make(map[string]bool)
+	var existingLabelNames []string
+	for _, label := range existingLabels {
+		existingLabelMap[strings.ToLower(label.Name)] = true
+		existingLabelNames = append(existingLabelNames, label.Name)
+	}
+
+	// Check which requested labels don't exist
+	var missingLabels []string
+	for _, requestedLabel := range requestedLabels {
+		if !existingLabelMap[strings.ToLower(requestedLabel)] {
+			missingLabels = append(missingLabels, requestedLabel)
+		}
+	}
+
+	if len(missingLabels) > 0 {
+		a.logger.Warn("Labels not found", "missing_labels", missingLabels, "project_path", projectPath)
+
+		// Format error message with missing labels and available labels
+		errorMsg := fmt.Sprintf("The following labels do not exist in project '%s':\n", projectPath)
+		for _, label := range missingLabels {
+			errorMsg += fmt.Sprintf("- '%s'\n", label)
+		}
+
+		if len(existingLabelNames) > 0 {
+			errorMsg += "\nAvailable labels in this project:\n- "
+			errorMsg += strings.Join(existingLabelNames, ", ")
+		} else {
+			errorMsg += "\nThis project has no labels defined."
+		}
+
+		errorMsg += "\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false"
+
+		return fmt.Errorf("%s", errorMsg)
+	}
+
+	a.logger.Debug("All requested labels are valid", "project_id", projectID)
+	return nil
 }
