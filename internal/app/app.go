@@ -38,6 +38,7 @@ var (
 	ErrUserNotFound                 = errors.New("user not found")
 	ErrInvalidMilestoneIdentifierType = errors.New("invalid milestone identifier type")
 	ErrMilestoneNotFound            = errors.New("milestone not found")
+	ErrLabelValidationFailed        = errors.New("label validation failed")
 )
 
 type App struct {
@@ -103,7 +104,8 @@ func NewWithClient(token, uri string, client GitLabClient) *App {
 	}
 }
 
-// NewWithClientAndValidation creates a new App instance with an injected GitLabClient and validation setting (for testing).
+// NewWithClientAndValidation creates a new App instance with an injected GitLabClient and
+// validation setting (for testing).
 func NewWithClientAndValidation(token, uri string, client GitLabClient, validateLabels bool) *App {
 	return &App{
 		GitLabToken:    token,
@@ -1060,7 +1062,7 @@ func (a *App) validateLabels(projectID int, projectPath string, requestedLabels 
 
 	// Create a map of existing label names (case-insensitive)
 	existingLabelMap := make(map[string]bool)
-	var existingLabelNames []string
+	existingLabelNames := make([]string, 0, len(existingLabels))
 	for _, label := range existingLabels {
 		existingLabelMap[strings.ToLower(label.Name)] = true
 		existingLabelNames = append(existingLabelNames, label.Name)
@@ -1092,7 +1094,7 @@ func (a *App) validateLabels(projectID int, projectPath string, requestedLabels 
 
 		errorMsg += "\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false"
 
-		return fmt.Errorf("%s", errorMsg)
+		return fmt.Errorf("%w: %s", ErrLabelValidationFailed, errorMsg)
 	}
 
 	a.logger.Debug("All requested labels are valid", "project_id", projectID)
