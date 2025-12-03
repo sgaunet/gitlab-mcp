@@ -59,7 +59,7 @@ type ProjectsServiceWrapper struct {
 }
 
 func (p *ProjectsServiceWrapper) GetProject(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.GetProjectOptions,
 ) (*gitlab.Project, *gitlab.Response, error) {
 	project, resp, err := p.service.GetProject(pid, opt)
@@ -70,7 +70,7 @@ func (p *ProjectsServiceWrapper) GetProject(
 }
 
 func (p *ProjectsServiceWrapper) EditProject(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.EditProjectOptions,
 ) (*gitlab.Project, *gitlab.Response, error) {
 	project, resp, err := p.service.EditProject(pid, opt)
@@ -86,7 +86,7 @@ type IssuesServiceWrapper struct {
 }
 
 func (i *IssuesServiceWrapper) ListProjectIssues(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.ListProjectIssuesOptions,
 ) ([]*gitlab.Issue, *gitlab.Response, error) {
 	issues, resp, err := i.service.ListProjectIssues(pid, opt)
@@ -97,7 +97,7 @@ func (i *IssuesServiceWrapper) ListProjectIssues(
 }
 
 func (i *IssuesServiceWrapper) CreateIssue(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.CreateIssueOptions,
 ) (*gitlab.Issue, *gitlab.Response, error) {
 	issue, resp, err := i.service.CreateIssue(pid, opt)
@@ -108,7 +108,7 @@ func (i *IssuesServiceWrapper) CreateIssue(
 }
 
 func (i *IssuesServiceWrapper) UpdateIssue(
-	pid interface{},
+	pid any,
 	issue int64,
 	opt *gitlab.UpdateIssueOptions,
 ) (*gitlab.Issue, *gitlab.Response, error) {
@@ -125,7 +125,7 @@ type LabelsServiceWrapper struct {
 }
 
 func (l *LabelsServiceWrapper) ListLabels(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.ListLabelsOptions,
 ) ([]*gitlab.Label, *gitlab.Response, error) {
 	labels, resp, err := l.service.ListLabels(pid, opt)
@@ -162,7 +162,7 @@ type NotesServiceWrapper struct {
 }
 
 func (n *NotesServiceWrapper) CreateIssueNote(
-	pid interface{},
+	pid any,
 	issue int64,
 	opt *gitlab.CreateIssueNoteOptions,
 ) (*gitlab.Note, *gitlab.Response, error) {
@@ -179,7 +179,7 @@ type MergeRequestsServiceWrapper struct {
 }
 
 func (m *MergeRequestsServiceWrapper) CreateMergeRequest(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.CreateMergeRequestOptions,
 ) (*gitlab.MergeRequest, *gitlab.Response, error) {
 	mr, resp, err := m.service.CreateMergeRequest(pid, opt)
@@ -195,7 +195,7 @@ type MilestonesServiceWrapper struct {
 }
 
 func (m *MilestonesServiceWrapper) ListMilestones(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.ListMilestonesOptions,
 ) ([]*gitlab.Milestone, *gitlab.Response, error) {
 	milestones, resp, err := m.service.ListMilestones(pid, opt)

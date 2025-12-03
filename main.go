@@ -900,7 +900,7 @@ func setupUpdateProjectTopicsTool(s *server.MCPServer, appInstance *app.App, deb
 		}
 
 		// Extract topics
-		topicsInterface, ok := args["topics"].([]interface{})
+		topicsInterface, ok := args["topics"].([]any)
 		if !ok {
 			debugLogger.Error("topics is not an array", "value", args["topics"])
 			return mcp.NewToolResultError("topics must be an array of strings"), nil

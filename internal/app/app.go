@@ -177,10 +177,10 @@ type CreateMergeRequestOptions struct {
 	TargetBranch        string
 	Title               string
 	Description         string
-	Assignees           []interface{} // Can be usernames (string) or IDs (int)
-	Reviewers           []interface{} // Can be usernames (string) or IDs (int)
+	Assignees           []any // Can be usernames (string) or IDs (int)
+	Reviewers           []any // Can be usernames (string) or IDs (int)
 	Labels              []string
-	Milestone           interface{}   // Can be title (string) or ID (int)
+	Milestone           any   // Can be title (string) or ID (int)
 	RemoveSourceBranch  bool
 	Draft               bool
 }
@@ -193,7 +193,7 @@ type Issue struct {
 	Description string                 `json:"description"`
 	State       string                 `json:"state"`
 	Labels      []string               `json:"labels"`
-	Assignees   []map[string]interface{} `json:"assignees"`
+	Assignees   []map[string]any `json:"assignees"`
 	CreatedAt   string                 `json:"created_at"`
 	UpdatedAt   string                 `json:"updated_at"`
 }
@@ -217,11 +217,11 @@ type Label struct {
 type Note struct {
 	ID        int64                    `json:"id"`
 	Body      string                   `json:"body"`
-	Author    map[string]interface{}   `json:"author"`
-	CreatedAt string                   `json:"created_at"`
-	UpdatedAt string                   `json:"updated_at"`
-	System    bool                     `json:"system"`
-	Noteable  map[string]interface{}   `json:"noteable"`
+	Author    map[string]any   `json:"author"`
+	CreatedAt string           `json:"created_at"`
+	UpdatedAt string           `json:"updated_at"`
+	System    bool             `json:"system"`
+	Noteable  map[string]any   `json:"noteable"`
 }
 
 // MergeRequest represents a GitLab merge request.
@@ -233,11 +233,11 @@ type MergeRequest struct {
 	State              string                   `json:"state"`
 	SourceBranch       string                   `json:"source_branch"`
 	TargetBranch       string                   `json:"target_branch"`
-	Author             map[string]interface{}   `json:"author"`
-	Assignees          []map[string]interface{} `json:"assignees"`
-	Reviewers          []map[string]interface{} `json:"reviewers"`
-	Labels             []string                 `json:"labels"`
-	Milestone          map[string]interface{}   `json:"milestone"`
+	Author             map[string]any   `json:"author"`
+	Assignees          []map[string]any `json:"assignees"`
+	Reviewers          []map[string]any `json:"reviewers"`
+	Labels             []string         `json:"labels"`
+	Milestone          map[string]any   `json:"milestone"`
 	WebURL             string                   `json:"web_url"`
 	Draft              bool                     `json:"draft"`
 	CreatedAt          string                   `json:"created_at"`
@@ -260,9 +260,9 @@ func parseLabels(labels string) []string {
 // convertGitLabIssue converts a GitLab issue to our Issue struct.
 func convertGitLabIssue(issue *gitlab.Issue) Issue {
 	// Convert assignees to the expected format
-	assignees := make([]map[string]interface{}, 0, len(issue.Assignees))
+	assignees := make([]map[string]any, 0, len(issue.Assignees))
 	for _, assignee := range issue.Assignees {
-		assignees = append(assignees, map[string]interface{}{
+		assignees = append(assignees, map[string]any{
 			"id":       assignee.ID,
 			"username": assignee.Username,
 			"name":     assignee.Name,
@@ -285,9 +285,9 @@ func convertGitLabIssue(issue *gitlab.Issue) Issue {
 // convertGitLabMergeRequest converts a GitLab merge request to our MergeRequest struct.
 func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 	// Convert assignees to the expected format
-	assignees := make([]map[string]interface{}, 0, len(mr.Assignees))
+	assignees := make([]map[string]any, 0, len(mr.Assignees))
 	for _, assignee := range mr.Assignees {
-		assignees = append(assignees, map[string]interface{}{
+		assignees = append(assignees, map[string]any{
 			"id":       assignee.ID,
 			"username": assignee.Username,
 			"name":     assignee.Name,
@@ -295,9 +295,9 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 	}
 
 	// Convert reviewers to the expected format
-	reviewers := make([]map[string]interface{}, 0, len(mr.Reviewers))
+	reviewers := make([]map[string]any, 0, len(mr.Reviewers))
 	for _, reviewer := range mr.Reviewers {
-		reviewers = append(reviewers, map[string]interface{}{
+		reviewers = append(reviewers, map[string]any{
 			"id":       reviewer.ID,
 			"username": reviewer.Username,
 			"name":     reviewer.Name,
@@ -305,9 +305,9 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 	}
 
 	// Convert author to the expected format
-	var author map[string]interface{}
+	var author map[string]any
 	if mr.Author != nil {
-		author = map[string]interface{}{
+		author = map[string]any{
 			"id":       mr.Author.ID,
 			"username": mr.Author.Username,
 			"name":     mr.Author.Name,
@@ -315,9 +315,9 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 	}
 
 	// Convert milestone to the expected format
-	var milestone map[string]interface{}
+	var milestone map[string]any
 	if mr.Milestone != nil {
-		milestone = map[string]interface{}{
+		milestone = map[string]any{
 			"id":    mr.Milestone.ID,
 			"title": mr.Milestone.Title,
 		}
@@ -653,7 +653,7 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 
 	// Convert author information
 	if note.Author.ID != 0 {
-		result.Author = map[string]interface{}{
+		result.Author = map[string]any{
 			"id":       note.Author.ID,
 			"username": note.Author.Username,
 			"name":     note.Author.Name,
@@ -662,7 +662,7 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 
 	// Convert noteable information
 	if note.NoteableID != 0 {
-		result.Noteable = map[string]interface{}{
+		result.Noteable = map[string]any{
 			"id":   note.NoteableID,
 			"iid":  note.NoteableIID,
 			"type": note.NoteableType,
@@ -942,7 +942,7 @@ func (a *App) buildMergeRequestOptions(projectID int64, opts *CreateMergeRequest
 }
 
 // resolveUserIdentifiers converts username strings or IDs to user IDs.
-func (a *App) resolveUserIdentifiers(identifiers []interface{}) ([]int64, error) {
+func (a *App) resolveUserIdentifiers(identifiers []any) ([]int64, error) {
 	if len(identifiers) == 0 {
 		return nil, nil
 	}
@@ -998,7 +998,7 @@ func (a *App) findUserByUsername(username string) (int64, error) {
 }
 
 // resolveMilestoneIdentifier converts milestone title or ID to milestone ID.
-func (a *App) resolveMilestoneIdentifier(projectID int64, identifier interface{}) (int64, error) {
+func (a *App) resolveMilestoneIdentifier(projectID int64, identifier any) (int64, error) {
 	switch v := identifier.(type) {
 	case float64:
 		// It's already an ID
@@ -1080,21 +1080,22 @@ func (a *App) validateLabels(projectID int64, projectPath string, requestedLabel
 		a.logger.Warn("Labels not found", "missing_labels", missingLabels, "project_path", projectPath)
 
 		// Format error message with missing labels and available labels
-		errorMsg := fmt.Sprintf("The following labels do not exist in project '%s':\n", projectPath)
+		var errorMsg strings.Builder
+		fmt.Fprintf(&errorMsg, "The following labels do not exist in project '%s':\n", projectPath)
 		for _, label := range missingLabels {
-			errorMsg += fmt.Sprintf("- '%s'\n", label)
+			fmt.Fprintf(&errorMsg, "- '%s'\n", label)
 		}
 
 		if len(existingLabelNames) > 0 {
-			errorMsg += "\nAvailable labels in this project:\n- "
-			errorMsg += strings.Join(existingLabelNames, ", ")
+			errorMsg.WriteString("\nAvailable labels in this project:\n- ")
+			errorMsg.WriteString(strings.Join(existingLabelNames, ", "))
 		} else {
-			errorMsg += "\nThis project has no labels defined."
+			errorMsg.WriteString("\nThis project has no labels defined.")
 		}
 
-		errorMsg += "\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false"
+		errorMsg.WriteString("\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false")
 
-		return fmt.Errorf("%w: %s", ErrLabelValidationFailed, errorMsg)
+		return fmt.Errorf("%w: %s", ErrLabelValidationFailed, errorMsg.String())
 	}
 
 	a.logger.Debug("All requested labels are valid", "project_id", projectID)
