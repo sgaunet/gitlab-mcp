@@ -74,7 +74,7 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 		}
 
 		if limitFloat, ok := args["limit"].(float64); ok {
-			opts.Limit = int(limitFloat)
+			opts.Limit = int64(limitFloat)
 		}
 
 		debugLogger.Debug("Processing list_issues request", "project_path", projectPath, "opts", opts)
@@ -201,10 +201,10 @@ func extractCreateIssueOptions(args map[string]any, title string) *app.CreateIss
 
 	// Extract optional assignees
 	if assigneesInterface, ok := args["assignees"].([]any); ok {
-		assignees := make([]int, 0, len(assigneesInterface))
+		assignees := make([]int64, 0, len(assigneesInterface))
 		for _, assignee := range assigneesInterface {
 			if assigneeFloat, ok := assignee.(float64); ok {
-				assignees = append(assignees, int(assigneeFloat))
+				assignees = append(assignees, int64(assigneeFloat))
 			}
 		}
 		opts.Assignees = assignees
@@ -268,7 +268,7 @@ func handleUpdateIssueRequest(
 			debugLogger.Error("issue_iid is missing or not a number", "value", args["issue_iid"])
 			return mcp.NewToolResultError("issue_iid must be a number"), nil
 		}
-		issueIID := int(issueIIDFloat)
+		issueIID := int64(issueIIDFloat)
 
 		// Extract options
 		opts, err := extractUpdateIssueOptions(args, debugLogger)
@@ -353,10 +353,10 @@ func extractUpdateArrayFields(args map[string]any, opts *app.UpdateIssueOptions)
 
 	// Extract optional assignees
 	if assigneesInterface, ok := args["assignees"].([]any); ok {
-		assignees := make([]int, 0, len(assigneesInterface))
+		assignees := make([]int64, 0, len(assigneesInterface))
 		for _, assignee := range assigneesInterface {
 			if assigneeFloat, ok := assignee.(float64); ok {
-				assignees = append(assignees, int(assigneeFloat))
+				assignees = append(assignees, int64(assigneeFloat))
 			}
 		}
 		opts.Assignees = assignees
@@ -450,7 +450,7 @@ func extractListLabelsOptions(args map[string]any) *app.ListLabelsOptions {
 	}
 
 	if limitFloat, ok := args["limit"].(float64); ok {
-		opts.Limit = int(limitFloat)
+		opts.Limit = int64(limitFloat)
 	}
 
 	return opts
@@ -500,7 +500,7 @@ func handleAddIssueNoteRequest(
 			debugLogger.Error("issue_iid is missing or not a number", "value", args["issue_iid"])
 			return mcp.NewToolResultError("issue_iid must be a number"), nil
 		}
-		issueIID := int(issueIIDFloat)
+		issueIID := int64(issueIIDFloat)
 
 		// Extract body (required)
 		body, ok := args["body"].(string)

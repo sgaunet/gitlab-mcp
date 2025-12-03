@@ -14,7 +14,7 @@ type ProjectsService interface {
 type IssuesService interface {
 	ListProjectIssues(pid interface{}, opt *gitlab.ListProjectIssuesOptions) ([]*gitlab.Issue, *gitlab.Response, error)
 	CreateIssue(pid interface{}, opt *gitlab.CreateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
-	UpdateIssue(pid interface{}, issue int, opt *gitlab.UpdateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
+	UpdateIssue(pid interface{}, issue int64, opt *gitlab.UpdateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
 }
 
 // LabelsService interface for GitLab Labels operations.
@@ -30,7 +30,7 @@ type UsersService interface {
 
 // NotesService interface for GitLab Notes operations.
 type NotesService interface {
-	CreateIssueNote(pid interface{}, issue int, opt *gitlab.CreateIssueNoteOptions) (*gitlab.Note, *gitlab.Response, error)
+	CreateIssueNote(pid interface{}, issue int64, opt *gitlab.CreateIssueNoteOptions) (*gitlab.Note, *gitlab.Response, error)
 }
 
 // MergeRequestsService interface for GitLab MergeRequests operations.

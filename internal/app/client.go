@@ -108,8 +108,8 @@ func (i *IssuesServiceWrapper) CreateIssue(
 }
 
 func (i *IssuesServiceWrapper) UpdateIssue(
-	pid interface{}, 
-	issue int, 
+	pid interface{},
+	issue int64,
 	opt *gitlab.UpdateIssueOptions,
 ) (*gitlab.Issue, *gitlab.Response, error) {
 	updatedIssue, resp, err := i.service.UpdateIssue(pid, issue, opt)
@@ -162,8 +162,8 @@ type NotesServiceWrapper struct {
 }
 
 func (n *NotesServiceWrapper) CreateIssueNote(
-	pid interface{}, 
-	issue int, 
+	pid interface{},
+	issue int64,
 	opt *gitlab.CreateIssueNoteOptions,
 ) (*gitlab.Note, *gitlab.Response, error) {
 	note, resp, err := n.service.CreateIssueNote(pid, issue, opt)

@@ -85,7 +85,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				
-				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{
 						{
 							ID:          1,
@@ -110,7 +110,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 					Description: "Test Description",
 					State:       "opened",
 					Labels:      []string{"bug", "high-priority"},
-					Assignees:   []map[string]interface{}{{"id": 1, "username": "user1", "name": "User One"}},
+					Assignees:   []map[string]interface{}{{"id": int64(1), "username": "user1", "name": "User One"}},
 					CreatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
 					UpdatedAt:   testTime.Format("2006-01-02T15:04:05Z"),
 				},
@@ -133,7 +133,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 				
-				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{},
 					&gitlab.Response{}, nil,
 				)
@@ -159,7 +159,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				
-				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{
 						{
 							ID:          1,
@@ -209,7 +209,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 				
-				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{
 						{
 							ID:          2,
@@ -270,7 +270,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				
-				issues.On("ListProjectIssues", 123, expectedOpts).Return(
+				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					([]*gitlab.Issue)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
 			},
@@ -333,7 +333,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 					Description: gitlab.Ptr(""),
 				}
 				
-				issues.On("CreateIssue", 123, expectedOpts).Return(
+				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          2,
 						IID:         11,
@@ -367,7 +367,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 				Title:       "Full Issue",
 				Description: "Full description",
 				Labels:      []string{"bug", "priority-high"},
-				Assignees:   []int{1, 2},
+				Assignees:   []int64{1, 2},
 			},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				mockLabels := &MockLabelsService{}
@@ -385,7 +385,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 					IncludeAncestorGroups: gitlab.Ptr(false),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				mockLabels.On("ListLabels", 123, listOpts).Return(
+				mockLabels.On("ListLabels", int64(123), listOpts).Return(
 					[]*gitlab.Label{
 						{ID: 1, Name: "bug"},
 						{ID: 2, Name: "priority-high"},
@@ -399,10 +399,10 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 					Title:       gitlab.Ptr("Full Issue"),
 					Description: gitlab.Ptr("Full description"),
 					Labels:      &expectedLabels,
-					AssigneeIDs: &[]int{1, 2},
+					AssigneeIDs: &[]int64{1, 2},
 				}
 				
-				issues.On("CreateIssue", 123, expectedOpts).Return(
+				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          3,
 						IID:         12,
@@ -428,8 +428,8 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 				State:       "opened",
 				Labels:      []string{"bug", "priority-high"},
 				Assignees: []map[string]interface{}{
-					{"id": 1, "username": "user1", "name": "User One"},
-					{"id": 2, "username": "user2", "name": "User Two"},
+					{"id": int64(1), "username": "user1", "name": "User One"},
+					{"id": int64(2), "username": "user2", "name": "User Two"},
 				},
 				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
 				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
@@ -510,7 +510,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					Labels:      &expectedLabels,
 				}
 
-				issues.On("CreateIssue", 123, expectedOpts).Return(
+				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:        1,
 						IID:       1,
@@ -544,7 +544,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					IncludeAncestorGroups: gitlab.Ptr(false),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				labels.On("ListLabels", 123, listOpts).Return(
+				labels.On("ListLabels", int64(123), listOpts).Return(
 					[]*gitlab.Label{
 						{ID: 1, Name: "bug"},
 						{ID: 2, Name: "enhancement"},
@@ -561,7 +561,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					Labels:      &expectedLabels,
 				}
 
-				issues.On("CreateIssue", 123, expectedOpts).Return(
+				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:        1,
 						IID:       1,
@@ -594,7 +594,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					IncludeAncestorGroups: gitlab.Ptr(false),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				labels.On("ListLabels", 123, listOpts).Return(
+				labels.On("ListLabels", int64(123), listOpts).Return(
 					[]*gitlab.Label{
 						{ID: 1, Name: "bug"},
 						{ID: 2, Name: "enhancement"},
@@ -624,7 +624,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					IncludeAncestorGroups: gitlab.Ptr(false),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				labels.On("ListLabels", 123, listOpts).Return(
+				labels.On("ListLabels", int64(123), listOpts).Return(
 					[]*gitlab.Label{
 						{ID: 1, Name: "bug"},
 						{ID: 2, Name: "enhancement"},
@@ -640,7 +640,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					Labels:      &expectedLabels,
 				}
 
-				issues.On("CreateIssue", 123, expectedOpts).Return(
+				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:        1,
 						IID:       1,
@@ -720,7 +720,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				
-				labels.On("ListLabels", 123, expectedOpts).Return(
+				labels.On("ListLabels", int64(123), expectedOpts).Return(
 					[]*gitlab.Label{
 						{
 							ID:                     1,
@@ -774,7 +774,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 					ListOptions:           gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 				
-				labels.On("ListLabels", 123, expectedOpts).Return(
+				labels.On("ListLabels", int64(123), expectedOpts).Return(
 					[]*gitlab.Label{},
 					&gitlab.Response{}, nil,
 				)
@@ -907,7 +907,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 	
 	tests := []struct {
 		name      string
-		issueIID  int
+		issueIID  int64
 		opts      *UpdateIssueOptions
 		setup     func(*MockGitLabClient, *MockProjectsService, *MockIssuesService)
 		want      *Issue
@@ -921,7 +921,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 				Description: "Updated description",
 				State:       "closed",
 				Labels:      []string{"bug", "fixed"},
-				Assignees:   []int{1, 2},
+				Assignees:   []int64{1, 2},
 			},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
@@ -937,10 +937,10 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 					Description: gitlab.Ptr("Updated description"),
 					StateEvent:  gitlab.Ptr("closed"),
 					Labels:      &expectedLabels,
-					AssigneeIDs: &[]int{1, 2},
+					AssigneeIDs: &[]int64{1, 2},
 				}
 				
-				issues.On("UpdateIssue", 123, 10, expectedOpts).Return(
+				issues.On("UpdateIssue", int64(123), int64(10), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          3,
 						IID:         10,
@@ -966,8 +966,8 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 				State:       "closed",
 				Labels:      []string{"bug", "fixed"},
 				Assignees: []map[string]interface{}{
-					{"id": 1, "username": "user1", "name": "User One"},
-					{"id": 2, "username": "user2", "name": "User Two"},
+					{"id": int64(1), "username": "user1", "name": "User One"},
+					{"id": int64(2), "username": "user2", "name": "User Two"},
 				},
 				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
 				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
@@ -992,7 +992,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 					Title: gitlab.Ptr("Just updating title"),
 				}
 				
-				issues.On("UpdateIssue", 123, 5, expectedOpts).Return(
+				issues.On("UpdateIssue", int64(123), int64(5), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          4,
 						IID:         5,
@@ -1066,7 +1066,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 					Title: gitlab.Ptr("Test"),
 				}
 				
-				issues.On("UpdateIssue", 123, 1, expectedOpts).Return(
+				issues.On("UpdateIssue", int64(123), int64(1), expectedOpts).Return(
 					(*gitlab.Issue)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
 			},
@@ -1127,7 +1127,7 @@ func TestApp_AddIssueNote(t *testing.T) {
 					Body: gitlab.Ptr("This is a test note"),
 				}
 				
-				notes.On("CreateIssueNote", 123, 10, expectedOpts).Return(
+				notes.On("CreateIssueNote", int64(123), int64(10), expectedOpts).Return(
 					&gitlab.Note{
 						ID:     1,
 						Body:   "This is a test note",
@@ -1145,10 +1145,10 @@ func TestApp_AddIssueNote(t *testing.T) {
 				ID:        1,
 				Body:      "This is a test note",
 				System:    false,
-				Author:    map[string]interface{}{"id": 1, "username": "testuser", "name": "Test User"},
+				Author:    map[string]interface{}{"id": int64(1), "username": "testuser", "name": "Test User"},
 				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
 				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
-				Noteable:  map[string]interface{}{"id": 50, "iid": 10, "type": "Issue"},
+				Noteable:  map[string]interface{}{"id": int64(50), "iid": int64(10), "type": "Issue"},
 			},
 			wantErr: false,
 		},
@@ -1194,7 +1194,7 @@ func TestApp_AddIssueNote(t *testing.T) {
 					Body: gitlab.Ptr("Test note"),
 				}
 				
-				notes.On("CreateIssueNote", 123, 10, expectedOpts).Return(
+				notes.On("CreateIssueNote", int64(123), int64(10), expectedOpts).Return(
 					(*gitlab.Note)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
 			},
@@ -1283,7 +1283,7 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 					RemoveSourceBranch: gitlab.Ptr(false),
 				}
 				
-				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
 							ID:           1,
@@ -1314,7 +1314,7 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 				State:        "opened",
 				SourceBranch: "feature-branch",
 				TargetBranch: "main",
-				Author:       map[string]interface{}{"id": 1, "username": "testuser", "name": "Test User"},
+				Author:       map[string]interface{}{"id": int64(1), "username": "testuser", "name": "Test User"},
 				Assignees:    []map[string]interface{}{},
 				Reviewers:    []map[string]interface{}{},
 				Labels:       []string{},
@@ -1353,14 +1353,14 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 					SourceBranch:       gitlab.Ptr("feature-branch"),
 					TargetBranch:       gitlab.Ptr("main"),
 					Description:        gitlab.Ptr("This is a test merge request"),
-					AssigneeIDs:        &[]int{1, 2},
-					ReviewerIDs:        &[]int{3, 4},
+					AssigneeIDs:        &[]int64{1, 2},
+					ReviewerIDs:        &[]int64{3, 4},
 					Labels:             (*gitlab.LabelOptions)(&[]string{"enhancement", "feature"}),
-					MilestoneID:        gitlab.Ptr(10),
+					MilestoneID:        gitlab.Ptr(int64(10)),
 					RemoveSourceBranch: gitlab.Ptr(true),
 				}
 				
-				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
 							ID:           2,
@@ -1391,11 +1391,11 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 				State:        "opened",
 				SourceBranch: "feature-branch",
 				TargetBranch: "main",
-				Author:       map[string]interface{}{"id": 1, "username": "testuser", "name": "Test User"},
-				Assignees:    []map[string]interface{}{{"id": 1, "username": "assignee1", "name": "Assignee One"}, {"id": 2, "username": "assignee2", "name": "Assignee Two"}},
-				Reviewers:    []map[string]interface{}{{"id": 3, "username": "reviewer1", "name": "Reviewer One"}, {"id": 4, "username": "reviewer2", "name": "Reviewer Two"}},
+				Author:       map[string]interface{}{"id": int64(1), "username": "testuser", "name": "Test User"},
+				Assignees:    []map[string]interface{}{{"id": int64(1), "username": "assignee1", "name": "Assignee One"}, {"id": int64(2), "username": "assignee2", "name": "Assignee Two"}},
+				Reviewers:    []map[string]interface{}{{"id": int64(3), "username": "reviewer1", "name": "Reviewer One"}, {"id": int64(4), "username": "reviewer2", "name": "Reviewer Two"}},
 				Labels:       []string{"enhancement", "feature"},
-				Milestone:    map[string]interface{}{"id": 10, "title": "v1.0"},
+				Milestone:    map[string]interface{}{"id": int64(10), "title": "v1.0"},
 				WebURL:       "https://gitlab.com/test/project/-/merge_requests/101",
 				Draft:        true,
 				CreatedAt:    testTime.Format("2006-01-02T15:04:05Z"),
@@ -1482,7 +1482,7 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 					RemoveSourceBranch: gitlab.Ptr(false),
 				}
 				
-				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					(*gitlab.MergeRequest)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
 			},
@@ -1579,7 +1579,7 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 				
 				// Mock milestone lookup
 				state := "active"
-				milestones.On("ListMilestones", 123, &gitlab.ListMilestonesOptions{
+				milestones.On("ListMilestones", int64(123), &gitlab.ListMilestonesOptions{
 					State:       &state,
 					ListOptions: gitlab.ListOptions{PerPage: maxMilestonesPerPage, Page: 1},
 				}).Return([]*gitlab.Milestone{
@@ -1592,14 +1592,14 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 					SourceBranch:       gitlab.Ptr("feature-branch"),
 					TargetBranch:       gitlab.Ptr("main"),
 					Description:        gitlab.Ptr("This is a test merge request"),
-					AssigneeIDs:        &[]int{10, 20},
-					ReviewerIDs:        &[]int{30},
+					AssigneeIDs:        &[]int64{10, 20},
+					ReviewerIDs:        &[]int64{30},
 					Labels:             (*gitlab.LabelOptions)(&[]string{"enhancement"}),
-					MilestoneID:        gitlab.Ptr(100),
+					MilestoneID:        gitlab.Ptr(int64(100)),
 					RemoveSourceBranch: gitlab.Ptr(true),
 				}
 				
-				mrs.On("CreateMergeRequest", 123, expectedOpts).Return(
+				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
 							ID:           3,
@@ -1644,20 +1644,20 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 				SourceBranch: "feature-branch",
 				TargetBranch: "main",
 				Author: map[string]interface{}{
-					"id":       1,
+					"id":       int64(1),
 					"username": "testuser",
 					"name":     "Test User",
 				},
 				Assignees: []map[string]interface{}{
-					{"id": 10, "username": "alice", "name": "Alice"},
-					{"id": 20, "username": "bob", "name": "Bob"},
+					{"id": int64(10), "username": "alice", "name": "Alice"},
+					{"id": int64(20), "username": "bob", "name": "Bob"},
 				},
 				Reviewers: []map[string]interface{}{
-					{"id": 30, "username": "charlie", "name": "Charlie"},
+					{"id": int64(30), "username": "charlie", "name": "Charlie"},
 				},
 				Labels: []string{"enhancement"},
 				Milestone: map[string]interface{}{
-					"id":    100,
+					"id":    int64(100),
 					"title": "v1.0",
 				},
 				WebURL:    "https://gitlab.com/test/project/-/merge_requests/102",
@@ -1815,7 +1815,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 				expectedOpts := &gitlab.EditProjectOptions{
 					Description: gitlab.Ptr("Updated project description"),
 				}
-				projects.On("EditProject", 123, expectedOpts).Return(
+				projects.On("EditProject", int64(123), expectedOpts).Return(
 					&gitlab.Project{
 						ID:          123,
 						Name:        "Test Project",
@@ -1869,7 +1869,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 				expectedOpts := &gitlab.EditProjectOptions{
 					Description: gitlab.Ptr("New description"),
 				}
-				projects.On("EditProject", 123, expectedOpts).Return(
+				projects.On("EditProject", int64(123), expectedOpts).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("403 Forbidden"),
 				)
 			},
@@ -2039,7 +2039,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 				expectedOpts := &gitlab.EditProjectOptions{
 					Topics: &expectedTopics,
 				}
-				projects.On("EditProject", 123, expectedOpts).Return(
+				projects.On("EditProject", int64(123), expectedOpts).Return(
 					&gitlab.Project{
 						ID:          123,
 						Name:        "Test Project",
@@ -2079,7 +2079,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 				expectedOpts := &gitlab.EditProjectOptions{
 					Topics: &expectedTopics,
 				}
-				projects.On("EditProject", 123, expectedOpts).Return(
+				projects.On("EditProject", int64(123), expectedOpts).Return(
 					&gitlab.Project{
 						ID:          123,
 						Name:        "Test Project",
@@ -2134,7 +2134,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 				expectedOpts := &gitlab.EditProjectOptions{
 					Topics: &expectedTopics,
 				}
-				projects.On("EditProject", 123, expectedOpts).Return(
+				projects.On("EditProject", int64(123), expectedOpts).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("403 Forbidden"),
 				)
 			},

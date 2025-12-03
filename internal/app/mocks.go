@@ -107,8 +107,8 @@ func (m *MockIssuesService) CreateIssue(
 }
 
 func (m *MockIssuesService) UpdateIssue(
-	pid interface{}, 
-	issue int, 
+	pid interface{},
+	issue int64,
 	opt *gitlab.UpdateIssueOptions,
 ) (*gitlab.Issue, *gitlab.Response, error) {
 	args := m.Called(pid, issue, opt)
@@ -157,8 +157,8 @@ type MockNotesService struct {
 }
 
 func (m *MockNotesService) CreateIssueNote(
-	pid interface{}, 
-	issue int, 
+	pid interface{},
+	issue int64,
 	opt *gitlab.CreateIssueNoteOptions,
 ) (*gitlab.Note, *gitlab.Response, error) {
 	args := m.Called(pid, issue, opt)

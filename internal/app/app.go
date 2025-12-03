@@ -138,7 +138,7 @@ func (a *App) ValidateConnection() error {
 type ListIssuesOptions struct {
 	State  string
 	Labels string
-	Limit  int
+	Limit  int64
 }
 
 // CreateIssueOptions contains options for creating a project issue.
@@ -146,7 +146,7 @@ type CreateIssueOptions struct {
 	Title       string
 	Description string
 	Labels      []string
-	Assignees   []int
+	Assignees   []int64
 }
 
 // UpdateIssueOptions contains options for updating a project issue.
@@ -155,7 +155,7 @@ type UpdateIssueOptions struct {
 	Description string
 	State       string
 	Labels      []string
-	Assignees   []int
+	Assignees   []int64
 }
 
 // ListLabelsOptions contains options for listing project labels.
@@ -163,7 +163,7 @@ type ListLabelsOptions struct {
 	WithCounts            bool
 	IncludeAncestorGroups bool
 	Search                string
-	Limit                 int
+	Limit                 int64
 }
 
 // AddIssueNoteOptions contains options for adding a note to an issue.
@@ -187,8 +187,8 @@ type CreateMergeRequestOptions struct {
 
 // Issue represents a GitLab issue.
 type Issue struct {
-	ID          int                    `json:"id"`
-	IID         int                    `json:"iid"`
+	ID          int64                  `json:"id"`
+	IID         int64                  `json:"iid"`
 	Title       string                 `json:"title"`
 	Description string                 `json:"description"`
 	State       string                 `json:"state"`
@@ -200,22 +200,22 @@ type Issue struct {
 
 // Label represents a GitLab label.
 type Label struct {
-	ID                     int    `json:"id"`
+	ID                     int64  `json:"id"`
 	Name                   string `json:"name"`
 	Color                  string `json:"color"`
 	TextColor              string `json:"text_color"`
 	Description            string `json:"description"`
-	OpenIssuesCount        int    `json:"open_issues_count"`
-	ClosedIssuesCount      int    `json:"closed_issues_count"`
-	OpenMergeRequestsCount int    `json:"open_merge_requests_count"`
+	OpenIssuesCount        int64  `json:"open_issues_count"`
+	ClosedIssuesCount      int64  `json:"closed_issues_count"`
+	OpenMergeRequestsCount int64  `json:"open_merge_requests_count"`
 	Subscribed             bool   `json:"subscribed"`
-	Priority               int    `json:"priority"`
+	Priority               int64  `json:"priority"`
 	IsProjectLabel         bool   `json:"is_project_label"`
 }
 
 // Note represents a GitLab note/comment.
 type Note struct {
-	ID        int                      `json:"id"`
+	ID        int64                    `json:"id"`
 	Body      string                   `json:"body"`
 	Author    map[string]interface{}   `json:"author"`
 	CreatedAt string                   `json:"created_at"`
@@ -226,8 +226,8 @@ type Note struct {
 
 // MergeRequest represents a GitLab merge request.
 type MergeRequest struct {
-	ID                 int                      `json:"id"`
-	IID                int                      `json:"iid"`
+	ID                 int64                    `json:"id"`
+	IID                int64                    `json:"iid"`
 	Title              string                   `json:"title"`
 	Description        string                   `json:"description"`
 	State              string                   `json:"state"`
@@ -545,7 +545,7 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 }
 
 // UpdateProjectIssue updates an existing issue for a given project path.
-func (a *App) UpdateProjectIssue(projectPath string, issueIID int, opts *UpdateIssueOptions) (*Issue, error) {
+func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *UpdateIssueOptions) (*Issue, error) {
 	// Validate required parameters
 	if issueIID <= 0 {
 		return nil, ErrInvalidIssueIID
@@ -609,7 +609,7 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int, opts *UpdateI
 }
 
 // AddIssueNote adds a note/comment to an existing issue.
-func (a *App) AddIssueNote(projectPath string, issueIID int, opts *AddIssueNoteOptions) (*Note, error) {
+func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNoteOptions) (*Note, error) {
 	// Validate required parameters
 	if issueIID <= 0 {
 		return nil, ErrInvalidIssueIID
@@ -729,7 +729,7 @@ func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeReq
 
 // ProjectInfo represents basic project information.
 type ProjectInfo struct {
-	ID          int      `json:"id"`
+	ID          int64    `json:"id"`
 	Name        string   `json:"name"`
 	Path        string   `json:"path"`
 	Description string   `json:"description"`
@@ -880,7 +880,7 @@ func (a *App) validateMergeRequestOptions(opts *CreateMergeRequestOptions) error
 }
 
 // buildMergeRequestOptions builds the GitLab API options for creating a merge request.
-func (a *App) buildMergeRequestOptions(projectID int, opts *CreateMergeRequestOptions) (
+func (a *App) buildMergeRequestOptions(projectID int64, opts *CreateMergeRequestOptions) (
 	*gitlab.CreateMergeRequestOptions, error,
 ) {
 	createOpts := &gitlab.CreateMergeRequestOptions{
@@ -942,21 +942,21 @@ func (a *App) buildMergeRequestOptions(projectID int, opts *CreateMergeRequestOp
 }
 
 // resolveUserIdentifiers converts username strings or IDs to user IDs.
-func (a *App) resolveUserIdentifiers(identifiers []interface{}) ([]int, error) {
+func (a *App) resolveUserIdentifiers(identifiers []interface{}) ([]int64, error) {
 	if len(identifiers) == 0 {
 		return nil, nil
 	}
 
-	userIDs := make([]int, 0, len(identifiers))
-	
+	userIDs := make([]int64, 0, len(identifiers))
+
 	for _, identifier := range identifiers {
 		switch v := identifier.(type) {
 		case float64:
 			// It's already an ID
-			userIDs = append(userIDs, int(v))
+			userIDs = append(userIDs, int64(v))
 		case int:
 			// It's already an ID
-			userIDs = append(userIDs, v)
+			userIDs = append(userIDs, int64(v))
 		case string:
 			// It's a username, need to resolve
 			userID, err := a.findUserByUsername(v)
@@ -968,44 +968,44 @@ func (a *App) resolveUserIdentifiers(identifiers []interface{}) ([]int, error) {
 			return nil, fmt.Errorf("%w: %T", ErrInvalidUserIdentifierType, identifier)
 		}
 	}
-	
+
 	return userIDs, nil
 }
 
 // findUserByUsername searches for a user by username and returns their ID.
-func (a *App) findUserByUsername(username string) (int, error) {
+func (a *App) findUserByUsername(username string) (int64, error) {
 	a.logger.Debug("Searching for user by username", "username", username)
-	
+
 	// Search for the user
 	listOpts := &gitlab.ListUsersOptions{
 		Username: &username,
 		ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
 	}
-	
+
 	users, _, err := a.client.Users().ListUsers(listOpts)
 	if err != nil {
 		a.logger.Error("Failed to search for user", "error", err, "username", username)
 		return 0, fmt.Errorf("failed to search for user: %w", err)
 	}
-	
+
 	if len(users) == 0 {
 		a.logger.Error("User not found", "username", username)
 		return 0, fmt.Errorf("%w: %s", ErrUserNotFound, username)
 	}
-	
+
 	a.logger.Debug("Found user", "username", username, "id", users[0].ID)
 	return users[0].ID, nil
 }
 
 // resolveMilestoneIdentifier converts milestone title or ID to milestone ID.
-func (a *App) resolveMilestoneIdentifier(projectID int, identifier interface{}) (int, error) {
+func (a *App) resolveMilestoneIdentifier(projectID int64, identifier interface{}) (int64, error) {
 	switch v := identifier.(type) {
 	case float64:
 		// It's already an ID
-		return int(v), nil
+		return int64(v), nil
 	case int:
 		// It's already an ID
-		return v, nil
+		return int64(v), nil
 	case string:
 		// It's a title, need to resolve
 		return a.findMilestoneByTitle(projectID, v)
@@ -1015,7 +1015,7 @@ func (a *App) resolveMilestoneIdentifier(projectID int, identifier interface{}) 
 }
 
 // findMilestoneByTitle searches for a milestone by title and returns its ID.
-func (a *App) findMilestoneByTitle(projectID int, title string) (int, error) {
+func (a *App) findMilestoneByTitle(projectID int64, title string) (int64, error) {
 	a.logger.Debug("Searching for milestone by title", "project_id", projectID, "title", title)
 	
 	// Search for active milestones
@@ -1044,7 +1044,7 @@ func (a *App) findMilestoneByTitle(projectID int, title string) (int, error) {
 }
 
 // validateLabels checks if the requested labels exist in the project.
-func (a *App) validateLabels(projectID int, projectPath string, requestedLabels []string) error {
+func (a *App) validateLabels(projectID int64, projectPath string, requestedLabels []string) error {
 	if len(requestedLabels) == 0 {
 		return nil // No labels to validate
 	}
