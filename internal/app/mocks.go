@@ -62,7 +62,7 @@ type MockProjectsService struct {
 }
 
 func (m *MockProjectsService) GetProject(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.GetProjectOptions,
 ) (*gitlab.Project, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
@@ -72,7 +72,7 @@ func (m *MockProjectsService) GetProject(
 }
 
 func (m *MockProjectsService) EditProject(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.EditProjectOptions,
 ) (*gitlab.Project, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
@@ -87,7 +87,7 @@ type MockIssuesService struct {
 }
 
 func (m *MockIssuesService) ListProjectIssues(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.ListProjectIssuesOptions,
 ) ([]*gitlab.Issue, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
@@ -97,7 +97,7 @@ func (m *MockIssuesService) ListProjectIssues(
 }
 
 func (m *MockIssuesService) CreateIssue(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.CreateIssueOptions,
 ) (*gitlab.Issue, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
@@ -107,8 +107,8 @@ func (m *MockIssuesService) CreateIssue(
 }
 
 func (m *MockIssuesService) UpdateIssue(
-	pid interface{}, 
-	issue int, 
+	pid any,
+	issue int64,
 	opt *gitlab.UpdateIssueOptions,
 ) (*gitlab.Issue, *gitlab.Response, error) {
 	args := m.Called(pid, issue, opt)
@@ -123,7 +123,7 @@ type MockLabelsService struct {
 }
 
 func (m *MockLabelsService) ListLabels(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.ListLabelsOptions,
 ) ([]*gitlab.Label, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
@@ -157,8 +157,8 @@ type MockNotesService struct {
 }
 
 func (m *MockNotesService) CreateIssueNote(
-	pid interface{}, 
-	issue int, 
+	pid any,
+	issue int64,
 	opt *gitlab.CreateIssueNoteOptions,
 ) (*gitlab.Note, *gitlab.Response, error) {
 	args := m.Called(pid, issue, opt)
@@ -173,7 +173,7 @@ type MockMergeRequestsService struct {
 }
 
 func (m *MockMergeRequestsService) CreateMergeRequest(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.CreateMergeRequestOptions,
 ) (*gitlab.MergeRequest, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
@@ -188,7 +188,7 @@ type MockMilestonesService struct {
 }
 
 func (m *MockMilestonesService) ListMilestones(
-	pid interface{}, 
+	pid any, 
 	opt *gitlab.ListMilestonesOptions,
 ) ([]*gitlab.Milestone, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
