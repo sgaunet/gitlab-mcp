@@ -173,6 +173,18 @@ func (n *NotesServiceWrapper) CreateIssueNote(
 	return note, resp, nil
 }
 
+func (n *NotesServiceWrapper) CreateMergeRequestNote(
+	pid any,
+	mergeRequest int64,
+	opt *gitlab.CreateMergeRequestNoteOptions,
+) (*gitlab.Note, *gitlab.Response, error) {
+	note, resp, err := n.service.CreateMergeRequestNote(pid, mergeRequest, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return note, resp, nil
+}
+
 // MergeRequestsServiceWrapper wraps the real MergeRequests service.
 type MergeRequestsServiceWrapper struct {
 	service gitlab.MergeRequestsServiceInterface

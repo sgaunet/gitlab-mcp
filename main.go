@@ -538,6 +538,90 @@ func handleAddIssueNoteRequest(
 	}
 }
 
+// setupAddMergeRequestNoteTool creates and registers the add_merge_request_note tool.
+func setupAddMergeRequestNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	addMergeRequestNoteTool := mcp.NewTool("add_merge_request_note",
+		mcp.WithDescription("Add a note/comment to an existing merge request for a GitLab project by project path"),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+		mcp.WithNumber("merge_request_iid",
+			mcp.Required(),
+			mcp.Description("Merge request internal ID (IID) to add note to"),
+		),
+		mcp.WithString("body",
+			mcp.Required(),
+			mcp.Description("Note/comment body text"),
+		),
+	)
+
+	s.AddTool(addMergeRequestNoteTool, handleAddMergeRequestNoteRequest(appInstance, debugLogger))
+}
+
+// handleAddMergeRequestNoteRequest handles the add_merge_request_note tool request.
+func handleAddMergeRequestNoteRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received add_merge_request_note tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract merge_request_iid (required)
+		mergeRequestIIDFloat, ok := args["merge_request_iid"].(float64)
+		if !ok {
+			debugLogger.Error("merge_request_iid is missing or not a number", "value", args["merge_request_iid"])
+			return mcp.NewToolResultError("merge_request_iid must be a number"), nil
+		}
+		mergeRequestIID := int64(mergeRequestIIDFloat)
+
+		// Extract body (required)
+		body, ok := args["body"].(string)
+		if !ok || body == "" {
+			debugLogger.Error("body is missing or not a string", "value", args["body"])
+			return mcp.NewToolResultError("body must be a non-empty string"), nil
+		}
+
+		// Create options
+		opts := &app.AddMergeRequestNoteOptions{
+			Body: body,
+		}
+
+		debugLogger.Debug("Processing add_merge_request_note request",
+			"project_path", projectPath, "merge_request_iid", mergeRequestIID)
+
+		// Call the app method
+		note, err := appInstance.AddMergeRequestNote(projectPath, mergeRequestIID, opts)
+		if err != nil {
+			debugLogger.Error("Failed to add merge request note",
+				"error", err, "project_path", projectPath, "merge_request_iid", mergeRequestIID)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to add merge request note: %v", err)), nil
+		}
+
+		// Convert note to JSON
+		jsonData, err := json.Marshal(note)
+		if err != nil {
+			debugLogger.Error("Failed to marshal note to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format note response"), nil
+		}
+
+		debugLogger.Info("Successfully added note to merge request",
+			"note_id", note.ID,
+			"project_path", projectPath,
+			"merge_request_iid", mergeRequestIID)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
 // setupCreateMergeRequestTool creates and registers the create_merge_request tool.
 func setupCreateMergeRequestTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	createMergeRequestTool := mcp.NewTool("create_merge_request",
@@ -962,6 +1046,7 @@ DESCRIPTION:
     • update_issues            - Update existing issues
     • list_labels              - List project labels with filtering
     • add_issue_note           - Add notes/comments to existing issues
+    • add_merge_request_note   - Add notes/comments to existing merge requests
     • create_merge_request     - Create new merge requests
     • get_project_description  - Get the description of a project
     • update_project_description - Update the project description
@@ -1038,6 +1123,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupUpdateIssueTool(s, appInstance, debugLogger)
 	setupListLabelsTool(s, appInstance, debugLogger)
 	setupAddIssueNoteTool(s, appInstance, debugLogger)
+	setupAddMergeRequestNoteTool(s, appInstance, debugLogger)
 	setupCreateMergeRequestTool(s, appInstance, debugLogger)
 	setupGetProjectDescriptionTool(s, appInstance, debugLogger)
 	setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)

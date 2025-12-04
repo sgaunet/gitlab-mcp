@@ -167,6 +167,17 @@ func (m *MockNotesService) CreateIssueNote(
 	return note, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockNotesService) CreateMergeRequestNote(
+	pid any,
+	mergeRequest int64,
+	opt *gitlab.CreateMergeRequestNoteOptions,
+) (*gitlab.Note, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	note, _ := args.Get(0).(*gitlab.Note)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return note, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 // MockMergeRequestsService is a mock implementation of MergeRequestsService.
 type MockMergeRequestsService struct {
 	mock.Mock
