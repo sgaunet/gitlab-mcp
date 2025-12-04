@@ -40,19 +40,19 @@ func TestApp_ValidateConnection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockUsers := &MockUsersService{}
-			
+
 			tt.setup(mockClient, mockUsers)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
-			
+
 			err := app.ValidateConnection()
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockUsers.AssertExpectations(t)
 		})
@@ -61,7 +61,7 @@ func TestApp_ValidateConnection(t *testing.T) {
 
 func TestApp_ListProjectIssues(t *testing.T) {
 	testTime := time.Now()
-	
+
 	tests := []struct {
 		name    string
 		opts    *ListIssuesOptions
@@ -75,16 +75,16 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
 					State:       gitlab.Ptr("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				
+
 				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{
 						{
@@ -123,16 +123,16 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
 					State:       gitlab.Ptr("closed"),
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
-				
+
 				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{},
 					&gitlab.Response{}, nil,
@@ -147,18 +147,18 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedLabels := gitlab.LabelOptions([]string{"bug"})
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
 					State:       gitlab.Ptr("opened"),
 					Labels:      &expectedLabels,
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				
+
 				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{
 						{
@@ -197,18 +197,18 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "priority-high", "needs-review"})
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
 					State:       gitlab.Ptr("opened"),
 					Labels:      &expectedLabels,
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
-				
+
 				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					[]*gitlab.Issue{
 						{
@@ -246,7 +246,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			opts: nil,
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
 				)
@@ -260,16 +260,16 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
 					State:       gitlab.Ptr("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				
+
 				issues.On("ListProjectIssues", int64(123), expectedOpts).Return(
 					([]*gitlab.Issue)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
@@ -284,14 +284,14 @@ func TestApp_ListProjectIssues(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
 			mockIssues := &MockIssuesService{}
-			
+
 			tt.setup(mockClient, mockProjects, mockIssues)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
-			
+
 			result, err := app.ListProjectIssues("test/project", tt.opts)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
@@ -299,7 +299,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, result)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockIssues.AssertExpectations(t)
@@ -309,7 +309,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 
 func TestApp_CreateProjectIssue(t *testing.T) {
 	testTime := time.Now()
-	
+
 	tests := []struct {
 		name    string
 		opts    *CreateIssueOptions
@@ -323,16 +323,16 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.CreateIssueOptions{
 					Title:       gitlab.Ptr("New Issue"),
 					Description: gitlab.Ptr(""),
 				}
-				
+
 				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          2,
@@ -393,7 +393,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 					},
 					&gitlab.Response{}, nil,
 				)
-				
+
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "priority-high"})
 				expectedOpts := &gitlab.CreateIssueOptions{
 					Title:       gitlab.Ptr("Full Issue"),
@@ -401,7 +401,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 					Labels:      &expectedLabels,
 					AssigneeIDs: &[]int64{1, 2},
 				}
-				
+
 				issues.On("CreateIssue", int64(123), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          3,
@@ -457,14 +457,14 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
 			mockIssues := &MockIssuesService{}
-			
+
 			tt.setup(mockClient, mockProjects, mockIssues)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
-			
+
 			result, err := app.CreateProjectIssue("test/project", tt.opts)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
@@ -472,7 +472,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, result)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockIssues.AssertExpectations(t)
@@ -484,11 +484,11 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 	testTime := time.Now()
 
 	tests := []struct {
-		name           string
-		validateLabels bool
-		issueLabels    []string
-		setup          func(*MockGitLabClient, *MockProjectsService, *MockIssuesService, *MockLabelsService)
-		wantErr        bool
+		name            string
+		validateLabels  bool
+		issueLabels     []string
+		setup           func(*MockGitLabClient, *MockProjectsService, *MockIssuesService, *MockLabelsService)
+		wantErr         bool
 		wantErrContains string
 	}{
 		{
@@ -602,7 +602,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 					&gitlab.Response{}, nil,
 				)
 			},
-			wantErr: true,
+			wantErr:         true,
 			wantErrContains: "non-existent-label",
 		},
 		{
@@ -709,17 +709,17 @@ func TestApp_ListProjectLabels(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, labels *MockLabelsService) {
 				client.On("Projects").Return(projects)
 				client.On("Labels").Return(labels)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(false),
 					IncludeAncestorGroups: gitlab.Ptr(false),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
-				
+
 				labels.On("ListLabels", int64(123), expectedOpts).Return(
 					[]*gitlab.Label{
 						{
@@ -762,18 +762,18 @@ func TestApp_ListProjectLabels(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, labels *MockLabelsService) {
 				client.On("Projects").Return(projects)
 				client.On("Labels").Return(labels)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(true),
 					IncludeAncestorGroups: gitlab.Ptr(false),
 					Search:                gitlab.Ptr("bug"),
 					ListOptions:           gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
-				
+
 				labels.On("ListLabels", int64(123), expectedOpts).Return(
 					[]*gitlab.Label{},
 					&gitlab.Response{}, nil,
@@ -787,7 +787,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 			opts: nil,
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, labels *MockLabelsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
 				)
@@ -802,14 +802,14 @@ func TestApp_ListProjectLabels(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
 			mockLabels := &MockLabelsService{}
-			
+
 			tt.setup(mockClient, mockProjects, mockLabels)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
-			
+
 			result, err := app.ListProjectLabels("test/project", tt.opts)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
@@ -817,7 +817,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, result)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockLabels.AssertExpectations(t)
@@ -827,9 +827,9 @@ func TestApp_ListProjectLabels(t *testing.T) {
 
 func TestNewWithClient(t *testing.T) {
 	mockClient := &MockGitLabClient{}
-	
+
 	app := NewWithClient("test-token", "https://gitlab.example.com/", mockClient)
-	
+
 	require.NotNil(t, app)
 	assert.Equal(t, "test-token", app.GitLabToken)
 	assert.Equal(t, "https://gitlab.example.com/", app.GitLabURI)
@@ -839,9 +839,9 @@ func TestNewWithClient(t *testing.T) {
 
 func TestApp_GetAPIURL(t *testing.T) {
 	mockClient := &MockGitLabClient{}
-	
+
 	app := NewWithClient("test-token", "https://gitlab.example.com", mockClient)
-	
+
 	expected := "https://gitlab.example.com/api/v4"
 	assert.Equal(t, expected, app.GetAPIURL())
 }
@@ -849,18 +849,18 @@ func TestApp_GetAPIURL(t *testing.T) {
 func TestApp_SetLogger(t *testing.T) {
 	mockClient := &MockGitLabClient{}
 	app := NewWithClient("test-token", "https://gitlab.com/", mockClient)
-	
+
 	logger := slog.New(slog.NewTextHandler(nil, nil))
 	app.SetLogger(logger)
-	
+
 	assert.Equal(t, logger, app.logger)
 }
 
 func TestParseLabels(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  string
-		want   []string
+		name  string
+		input string
+		want  []string
 	}{
 		{
 			name:  "single label",
@@ -904,14 +904,14 @@ func TestParseLabels(t *testing.T) {
 
 func TestApp_UpdateProjectIssue(t *testing.T) {
 	testTime := time.Now()
-	
+
 	tests := []struct {
-		name      string
-		issueIID  int64
-		opts      *UpdateIssueOptions
-		setup     func(*MockGitLabClient, *MockProjectsService, *MockIssuesService)
-		want      *Issue
-		wantErr   bool
+		name     string
+		issueIID int64
+		opts     *UpdateIssueOptions
+		setup    func(*MockGitLabClient, *MockProjectsService, *MockIssuesService)
+		want     *Issue
+		wantErr  bool
 	}{
 		{
 			name:     "successful update with all options",
@@ -926,11 +926,11 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "fixed"})
 				expectedOpts := &gitlab.UpdateIssueOptions{
 					Title:       gitlab.Ptr("Updated Title"),
@@ -939,7 +939,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 					Labels:      &expectedLabels,
 					AssigneeIDs: &[]int64{1, 2},
 				}
-				
+
 				issues.On("UpdateIssue", int64(123), int64(10), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          3,
@@ -983,15 +983,15 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.UpdateIssueOptions{
 					Title: gitlab.Ptr("Just updating title"),
 				}
-				
+
 				issues.On("UpdateIssue", int64(123), int64(5), expectedOpts).Return(
 					&gitlab.Issue{
 						ID:          4,
@@ -1042,7 +1042,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 			opts:     &UpdateIssueOptions{Title: "Test"},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
 				)
@@ -1057,15 +1057,15 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService) {
 				client.On("Projects").Return(projects)
 				client.On("Issues").Return(issues)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.UpdateIssueOptions{
 					Title: gitlab.Ptr("Test"),
 				}
-				
+
 				issues.On("UpdateIssue", int64(123), int64(1), expectedOpts).Return(
 					(*gitlab.Issue)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
@@ -1080,14 +1080,14 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
 			mockIssues := &MockIssuesService{}
-			
+
 			tt.setup(mockClient, mockProjects, mockIssues)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
-			
+
 			result, err := app.UpdateProjectIssue("test/project", tt.issueIID, tt.opts)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
@@ -1095,7 +1095,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, result)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockIssues.AssertExpectations(t)
@@ -1104,7 +1104,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 }
 func TestApp_AddIssueNote(t *testing.T) {
 	testTime := time.Now()
-	
+
 	tests := []struct {
 		name    string
 		opts    *AddIssueNoteOptions
@@ -1118,23 +1118,23 @@ func TestApp_AddIssueNote(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
 				client.On("Projects").Return(projects)
 				client.On("Notes").Return(notes)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.CreateIssueNoteOptions{
 					Body: gitlab.Ptr("This is a test note"),
 				}
-				
+
 				notes.On("CreateIssueNote", int64(123), int64(10), expectedOpts).Return(
 					&gitlab.Note{
-						ID:     1,
-						Body:   "This is a test note",
-						System: false,
-						Author: gitlab.NoteAuthor{ID: 1, Username: "testuser", Name: "Test User"},
-						CreatedAt: &testTime,
-						UpdatedAt: &testTime,
+						ID:           1,
+						Body:         "This is a test note",
+						System:       false,
+						Author:       gitlab.NoteAuthor{ID: 1, Username: "testuser", Name: "Test User"},
+						CreatedAt:    &testTime,
+						UpdatedAt:    &testTime,
 						NoteableID:   50,
 						NoteableIID:  10,
 						NoteableType: "Issue",
@@ -1171,7 +1171,7 @@ func TestApp_AddIssueNote(t *testing.T) {
 			opts: &AddIssueNoteOptions{Body: "Test note"},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "invalid/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
 				)
@@ -1185,15 +1185,15 @@ func TestApp_AddIssueNote(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
 				client.On("Projects").Return(projects)
 				client.On("Notes").Return(notes)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.CreateIssueNoteOptions{
 					Body: gitlab.Ptr("Test note"),
 				}
-				
+
 				notes.On("CreateIssueNote", int64(123), int64(10), expectedOpts).Return(
 					(*gitlab.Note)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
@@ -1208,17 +1208,17 @@ func TestApp_AddIssueNote(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
 			mockNotes := &MockNotesService{}
-			
+
 			tt.setup(mockClient, mockProjects, mockNotes)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
-			
+
 			projectPath := "test/project"
 			if tt.name == "project not found" {
 				projectPath = "invalid/project"
 			}
 			got, err := app.AddIssueNote(projectPath, 10, tt.opts)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, got)
@@ -1226,7 +1226,7 @@ func TestApp_AddIssueNote(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockNotes.AssertExpectations(t)
@@ -1237,13 +1237,13 @@ func TestApp_AddIssueNote(t *testing.T) {
 func TestApp_AddIssueNote_InvalidIssueIID(t *testing.T) {
 	app := NewWithClient("token", "https://gitlab.com/", &MockGitLabClient{})
 	opts := &AddIssueNoteOptions{Body: "Test note"}
-	
+
 	// Test negative IID
 	got, err := app.AddIssueNote("test/project", -1, opts)
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidIssueIID, err)
 	assert.Nil(t, got)
-	
+
 	// Test zero IID
 	got, err = app.AddIssueNote("test/project", 0, opts)
 	assert.Error(t, err)
@@ -1253,7 +1253,7 @@ func TestApp_AddIssueNote_InvalidIssueIID(t *testing.T) {
 
 func TestApp_CreateProjectMergeRequest(t *testing.T) {
 	testTime := time.Now()
-	
+
 	tests := []struct {
 		name    string
 		opts    *CreateMergeRequestOptions
@@ -1271,18 +1271,18 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
 				client.On("Projects").Return(projects)
 				client.On("MergeRequests").Return(mrs)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.CreateMergeRequestOptions{
 					Title:              gitlab.Ptr("Test MR"),
 					SourceBranch:       gitlab.Ptr("feature-branch"),
 					TargetBranch:       gitlab.Ptr("main"),
 					RemoveSourceBranch: gitlab.Ptr(false),
 				}
-				
+
 				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
@@ -1343,11 +1343,11 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
 				client.On("Projects").Return(projects)
 				client.On("MergeRequests").Return(mrs)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.CreateMergeRequestOptions{
 					Title:              gitlab.Ptr("Test MR with options"),
 					SourceBranch:       gitlab.Ptr("feature-branch"),
@@ -1359,7 +1359,7 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 					MilestoneID:        gitlab.Ptr(int64(10)),
 					RemoveSourceBranch: gitlab.Ptr(true),
 				}
-				
+
 				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
@@ -1452,7 +1452,7 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 			},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "invalid/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
 				)
@@ -1470,18 +1470,18 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, mrs *MockMergeRequestsService) {
 				client.On("Projects").Return(projects)
 				client.On("MergeRequests").Return(mrs)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				expectedOpts := &gitlab.CreateMergeRequestOptions{
 					Title:              gitlab.Ptr("Test MR"),
 					SourceBranch:       gitlab.Ptr("feature-branch"),
 					TargetBranch:       gitlab.Ptr("main"),
 					RemoveSourceBranch: gitlab.Ptr(false),
 				}
-				
+
 				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					(*gitlab.MergeRequest)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
@@ -1496,17 +1496,17 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
 			mockMRs := &MockMergeRequestsService{}
-			
+
 			tt.setup(mockClient, mockProjects, mockMRs)
 
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
-			
+
 			projectPath := "test/project"
 			if tt.name == "project not found" {
 				projectPath = "invalid/project"
 			}
 			got, err := app.CreateProjectMergeRequest(projectPath, tt.opts)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, got)
@@ -1514,7 +1514,7 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			}
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockMRs.AssertExpectations(t)
@@ -1524,16 +1524,16 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 
 func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 	t.Parallel()
-	
+
 	testTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	
+
 	testCases := []struct {
-		name     string
-		opts     *CreateMergeRequestOptions
-		setup    func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService, *MockUsersService, *MockMilestonesService)
-		want     *MergeRequest
-		wantErr  bool
-		errMsg   string
+		name    string
+		opts    *CreateMergeRequestOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockMergeRequestsService, *MockUsersService, *MockMilestonesService)
+		want    *MergeRequest
+		wantErr bool
+		errMsg  string
 	}{
 		{
 			name: "successful create with username resolution",
@@ -1553,30 +1553,30 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 				client.On("MergeRequests").Return(mrs)
 				client.On("Users").Return(users)
 				client.On("Milestones").Return(milestones)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
 				)
-				
+
 				// Mock user lookups
 				aliceUsername := "alice"
 				users.On("ListUsers", &gitlab.ListUsersOptions{
-					Username: &aliceUsername,
+					Username:    &aliceUsername,
 					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
 				}).Return([]*gitlab.User{{ID: 10, Username: "alice"}}, &gitlab.Response{}, nil)
-				
+
 				bobUsername := "bob"
 				users.On("ListUsers", &gitlab.ListUsersOptions{
-					Username: &bobUsername,
+					Username:    &bobUsername,
 					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
 				}).Return([]*gitlab.User{{ID: 20, Username: "bob"}}, &gitlab.Response{}, nil)
-				
+
 				charlieUsername := "charlie"
 				users.On("ListUsers", &gitlab.ListUsersOptions{
-					Username: &charlieUsername,
+					Username:    &charlieUsername,
 					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
 				}).Return([]*gitlab.User{{ID: 30, Username: "charlie"}}, &gitlab.Response{}, nil)
-				
+
 				// Mock milestone lookup
 				state := "active"
 				milestones.On("ListMilestones", int64(123), &gitlab.ListMilestonesOptions{
@@ -1586,7 +1586,7 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 					{ID: 100, Title: "v1.0"},
 					{ID: 101, Title: "v2.0"},
 				}, &gitlab.Response{}, nil)
-				
+
 				expectedOpts := &gitlab.CreateMergeRequestOptions{
 					Title:              gitlab.Ptr("Test MR with usernames"),
 					SourceBranch:       gitlab.Ptr("feature-branch"),
@@ -1598,7 +1598,7 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 					MilestoneID:        gitlab.Ptr(int64(100)),
 					RemoveSourceBranch: gitlab.Ptr(true),
 				}
-				
+
 				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
@@ -1668,26 +1668,26 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 			wantErr: false,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			mockClient := new(MockGitLabClient)
 			mockProjects := new(MockProjectsService)
 			mockMRs := new(MockMergeRequestsService)
 			mockUsers := new(MockUsersService)
 			mockMilestones := new(MockMilestonesService)
-			
+
 			if tc.setup != nil {
 				tc.setup(mockClient, mockProjects, mockMRs, mockUsers, mockMilestones)
 			}
-			
+
 			app := NewWithClient("test-token", "https://gitlab.com/", mockClient)
-			
+
 			got, err := app.CreateProjectMergeRequest("test/project", tc.opts)
-			
+
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.errMsg != "" {
@@ -1695,10 +1695,10 @@ func TestApp_CreateProjectMergeRequest_WithUsernameResolution(t *testing.T) {
 				}
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockMRs.AssertExpectations(t)
@@ -1722,7 +1722,7 @@ func TestApp_GetProjectDescription(t *testing.T) {
 			projectPath: "test/project",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
 						ID:          123,
@@ -1745,7 +1745,7 @@ func TestApp_GetProjectDescription(t *testing.T) {
 			projectPath: "nonexistent/project",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
 				)
@@ -1760,14 +1760,14 @@ func TestApp_GetProjectDescription(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
-			
+
 			tc.setup(mockClient, mockProjects)
-			
+
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-			
+
 			got, err := app.GetProjectDescription(tc.projectPath)
-			
+
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.errMsg != "" {
@@ -1775,10 +1775,10 @@ func TestApp_GetProjectDescription(t *testing.T) {
 				}
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 		})
@@ -1801,7 +1801,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 			description: "Updated project description",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects).Times(2)
-				
+
 				// First call to get project ID
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
@@ -1810,7 +1810,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 						Path: "project",
 					}, &gitlab.Response{}, nil,
 				)
-				
+
 				// Second call to update project
 				expectedOpts := &gitlab.EditProjectOptions{
 					Description: gitlab.Ptr("Updated project description"),
@@ -1840,7 +1840,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 			description: "New description",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
 				)
@@ -1855,7 +1855,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 			description: "New description",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects).Times(2)
-				
+
 				// First call to get project ID
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
@@ -1864,7 +1864,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 						Path: "project",
 					}, &gitlab.Response{}, nil,
 				)
-				
+
 				// Second call to update project fails
 				expectedOpts := &gitlab.EditProjectOptions{
 					Description: gitlab.Ptr("New description"),
@@ -1883,14 +1883,14 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
-			
+
 			tc.setup(mockClient, mockProjects)
-			
+
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-			
+
 			got, err := app.UpdateProjectDescription(tc.projectPath, tc.description)
-			
+
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.errMsg != "" {
@@ -1898,10 +1898,10 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 				}
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 		})
@@ -1922,7 +1922,7 @@ func TestApp_GetProjectTopics(t *testing.T) {
 			projectPath: "test/project",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
 						ID:     123,
@@ -1945,7 +1945,7 @@ func TestApp_GetProjectTopics(t *testing.T) {
 			projectPath: "test/project",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
 						ID:     123,
@@ -1968,7 +1968,7 @@ func TestApp_GetProjectTopics(t *testing.T) {
 			projectPath: "nonexistent/project",
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
 				)
@@ -1983,14 +1983,14 @@ func TestApp_GetProjectTopics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
-			
+
 			tc.setup(mockClient, mockProjects)
-			
+
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-			
+
 			got, err := app.GetProjectTopics(tc.projectPath)
-			
+
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.errMsg != "" {
@@ -1998,10 +1998,10 @@ func TestApp_GetProjectTopics(t *testing.T) {
 				}
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 		})
@@ -2024,7 +2024,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 			topics:      []string{"golang", "api", "mcp"},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects).Times(2)
-				
+
 				// First call to get project ID
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
@@ -2033,7 +2033,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 						Path: "project",
 					}, &gitlab.Response{}, nil,
 				)
-				
+
 				// Second call to update project
 				expectedTopics := []string{"golang", "api", "mcp"}
 				expectedOpts := &gitlab.EditProjectOptions{
@@ -2064,7 +2064,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 			topics:      []string{},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects).Times(2)
-				
+
 				// First call to get project ID
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
@@ -2073,7 +2073,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 						Path: "project",
 					}, &gitlab.Response{}, nil,
 				)
-				
+
 				// Second call to update project with empty topics
 				expectedTopics := []string{}
 				expectedOpts := &gitlab.EditProjectOptions{
@@ -2104,7 +2104,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 			topics:      []string{"topic1"},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects)
-				
+
 				projects.On("GetProject", "nonexistent/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
 				)
@@ -2119,7 +2119,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 			topics:      []string{"topic1"},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService) {
 				client.On("Projects").Return(projects).Times(2)
-				
+
 				// First call to get project ID
 				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
 					&gitlab.Project{
@@ -2128,7 +2128,7 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 						Path: "project",
 					}, &gitlab.Response{}, nil,
 				)
-				
+
 				// Second call to update project fails
 				expectedTopics := []string{"topic1"}
 				expectedOpts := &gitlab.EditProjectOptions{
@@ -2148,14 +2148,14 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockClient := &MockGitLabClient{}
 			mockProjects := &MockProjectsService{}
-			
+
 			tc.setup(mockClient, mockProjects)
-			
+
 			app := NewWithClient("token", "https://gitlab.com/", mockClient)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-			
+
 			got, err := app.UpdateProjectTopics(tc.projectPath, tc.topics)
-			
+
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.errMsg != "" {
@@ -2163,10 +2163,10 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 				}
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
-			
+
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 		})
