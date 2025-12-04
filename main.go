@@ -34,7 +34,7 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 		mcp.WithDescription("List issues for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("state",
@@ -61,7 +61,7 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 
 		// Extract optional parameters
 		opts := &app.ListIssuesOptions{
-			State: "opened", // default
+			State: "opened",     // default
 			Limit: defaultLimit, // default
 		}
 
@@ -104,7 +104,7 @@ func setupCreateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 		mcp.WithDescription("Create a new issue for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("title",
@@ -128,7 +128,7 @@ func setupCreateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 
 // handleCreateIssueRequest handles the create_issues tool request.
 func handleCreateIssueRequest(
-	appInstance *app.App, 
+	appInstance *app.App,
 	debugLogger *slog.Logger,
 ) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -168,10 +168,10 @@ func handleCreateIssueRequest(
 			return mcp.NewToolResultError("Failed to format issue response"), nil
 		}
 
-		debugLogger.Info("Successfully created issue", 
-			"id", issue.ID, 
-			"iid", issue.IID, 
-			"project_path", projectPath, 
+		debugLogger.Info("Successfully created issue",
+			"id", issue.ID,
+			"iid", issue.IID,
+			"project_path", projectPath,
 			"title", issue.Title)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	}
@@ -219,7 +219,7 @@ func setupUpdateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 		mcp.WithDescription("Update an existing issue for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithNumber("issue_iid",
@@ -248,7 +248,7 @@ func setupUpdateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 
 // handleUpdateIssueRequest handles the update_issues tool request.
 func handleUpdateIssueRequest(
-	appInstance *app.App, 
+	appInstance *app.App,
 	debugLogger *slog.Logger,
 ) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -369,7 +369,7 @@ func setupListLabelsTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 		mcp.WithDescription("List labels for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithBoolean("with_counts",
@@ -391,7 +391,7 @@ func setupListLabelsTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 
 // handleListLabelsRequest handles the list_labels tool request.
 func handleListLabelsRequest(
-	appInstance *app.App, 
+	appInstance *app.App,
 	debugLogger *slog.Logger,
 ) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -432,8 +432,8 @@ func handleListLabelsRequest(
 // extractListLabelsOptions extracts list labels options from arguments.
 func extractListLabelsOptions(args map[string]any) *app.ListLabelsOptions {
 	opts := &app.ListLabelsOptions{
-		WithCounts:            false, // default
-		IncludeAncestorGroups: false, // default
+		WithCounts:            false,        // default
+		IncludeAncestorGroups: false,        // default
 		Limit:                 defaultLimit, // default
 	}
 
@@ -462,7 +462,7 @@ func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogge
 		mcp.WithDescription("Add a note/comment to an existing issue for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithNumber("issue_iid",
@@ -480,7 +480,7 @@ func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogge
 
 // handleAddIssueNoteRequest handles the add_issue_note tool request.
 func handleAddIssueNoteRequest(
-	appInstance *app.App, 
+	appInstance *app.App,
 	debugLogger *slog.Logger,
 ) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -544,7 +544,7 @@ func setupCreateMergeRequestTool(s *server.MCPServer, appInstance *app.App, debu
 		mcp.WithDescription("Create a new merge request for a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("source_branch",
@@ -587,7 +587,7 @@ func setupCreateMergeRequestTool(s *server.MCPServer, appInstance *app.App, debu
 
 // handleCreateMergeRequestRequest handles the create_merge_request tool request.
 func handleCreateMergeRequestRequest(
-	appInstance *app.App, 
+	appInstance *app.App,
 	debugLogger *slog.Logger,
 ) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -600,8 +600,8 @@ func handleCreateMergeRequestRequest(
 			return err, nil
 		}
 
-		debugLogger.Debug("Processing create_merge_request request", 
-			"project_path", params.projectPath, 
+		debugLogger.Debug("Processing create_merge_request request",
+			"project_path", params.projectPath,
 			"title", params.title,
 			"source_branch", params.sourceBranch,
 			"target_branch", params.targetBranch)
@@ -609,9 +609,9 @@ func handleCreateMergeRequestRequest(
 		// Call the app method
 		mr, appErr := appInstance.CreateProjectMergeRequest(params.projectPath, params.opts)
 		if appErr != nil {
-			debugLogger.Error("Failed to create merge request", 
-				"error", appErr, 
-				"project_path", params.projectPath, 
+			debugLogger.Error("Failed to create merge request",
+				"error", appErr,
+				"project_path", params.projectPath,
 				"title", params.title)
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create merge request: %v", appErr)), nil
 		}
@@ -623,10 +623,10 @@ func handleCreateMergeRequestRequest(
 			return mcp.NewToolResultError("Failed to format merge request response"), nil
 		}
 
-		debugLogger.Info("Successfully created merge request", 
-			"id", mr.ID, 
-			"iid", mr.IID, 
-			"project_path", params.projectPath, 
+		debugLogger.Info("Successfully created merge request",
+			"id", mr.ID,
+			"iid", mr.IID,
+			"project_path", params.projectPath,
 			"title", mr.Title)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	}
@@ -687,7 +687,7 @@ func validateCreateMergeRequestParams(
 
 // extractCreateMergeRequestOptions extracts create merge request options from arguments.
 func extractCreateMergeRequestOptions(
-	args map[string]any, 
+	args map[string]any,
 	sourceBranch, targetBranch, title string,
 ) *app.CreateMergeRequestOptions {
 	opts := &app.CreateMergeRequestOptions{
@@ -808,7 +808,7 @@ func setupUpdateProjectDescriptionTool(s *server.MCPServer, appInstance *app.App
 		mcp.WithDescription("Update the description of a GitLab project by project path"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithString("description",
@@ -877,7 +877,7 @@ func setupUpdateProjectTopicsTool(s *server.MCPServer, appInstance *app.App, deb
 		mcp.WithDescription("Update the topics/tags of a GitLab project (replaces all existing topics)"),
 		mcp.WithString("project_path",
 			mcp.Required(),
-			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or " +
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
 				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
 		),
 		mcp.WithArray("topics",

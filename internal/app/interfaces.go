@@ -40,7 +40,7 @@ type NotesService interface {
 // MergeRequestsService interface for GitLab MergeRequests operations.
 type MergeRequestsService interface {
 	CreateMergeRequest(
-		pid any, 
+		pid any,
 		opt *gitlab.CreateMergeRequestOptions,
 	) (*gitlab.MergeRequest, *gitlab.Response, error)
 }

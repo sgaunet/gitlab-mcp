@@ -15,30 +15,30 @@ import (
 
 // Constants for default values.
 const (
-	defaultGitLabURI      = "https://gitlab.com/"
-	defaultStateOpened    = "opened"
-	maxIssuesPerPage      = 100
-	maxLabelsPerPage      = 100
-	maxMilestonesPerPage  = 100
+	defaultGitLabURI     = "https://gitlab.com/"
+	defaultStateOpened   = "opened"
+	maxIssuesPerPage     = 100
+	maxLabelsPerPage     = 100
+	maxMilestonesPerPage = 100
 )
 
 // Error variables for static errors.
 var (
-	ErrGitLabTokenRequired          = errors.New("GITLAB_TOKEN environment variable is required")
-	ErrCreateOptionsRequired        = errors.New("create issue options are required")
-	ErrIssueTitleRequired           = errors.New("issue title is required")
-	ErrInvalidIssueIID              = errors.New("issue IID must be a positive integer")
-	ErrUpdateOptionsRequired        = errors.New("update issue options are required")
-	ErrNoteBodyRequired             = errors.New("note body is required")
-	ErrCreateMROptionsRequired      = errors.New("create merge request options are required")
-	ErrMRTitleRequired              = errors.New("merge request title is required")
-	ErrMRSourceBranchRequired       = errors.New("merge request source branch is required")
-	ErrMRTargetBranchRequired       = errors.New("merge request target branch is required")
-	ErrInvalidUserIdentifierType    = errors.New("invalid user identifier type")
-	ErrUserNotFound                 = errors.New("user not found")
+	ErrGitLabTokenRequired            = errors.New("GITLAB_TOKEN environment variable is required")
+	ErrCreateOptionsRequired          = errors.New("create issue options are required")
+	ErrIssueTitleRequired             = errors.New("issue title is required")
+	ErrInvalidIssueIID                = errors.New("issue IID must be a positive integer")
+	ErrUpdateOptionsRequired          = errors.New("update issue options are required")
+	ErrNoteBodyRequired               = errors.New("note body is required")
+	ErrCreateMROptionsRequired        = errors.New("create merge request options are required")
+	ErrMRTitleRequired                = errors.New("merge request title is required")
+	ErrMRSourceBranchRequired         = errors.New("merge request source branch is required")
+	ErrMRTargetBranchRequired         = errors.New("merge request target branch is required")
+	ErrInvalidUserIdentifierType      = errors.New("invalid user identifier type")
+	ErrUserNotFound                   = errors.New("user not found")
 	ErrInvalidMilestoneIdentifierType = errors.New("invalid milestone identifier type")
-	ErrMilestoneNotFound            = errors.New("milestone not found")
-	ErrLabelValidationFailed        = errors.New("label validation failed")
+	ErrMilestoneNotFound              = errors.New("milestone not found")
+	ErrLabelValidationFailed          = errors.New("label validation failed")
 )
 
 type App struct {
@@ -129,10 +129,9 @@ func (a *App) ValidateConnection() error {
 	if err != nil {
 		return fmt.Errorf("failed to validate token: %w", err)
 	}
-	
+
 	return nil
 }
-
 
 // ListIssuesOptions contains options for listing project issues.
 type ListIssuesOptions struct {
@@ -173,29 +172,29 @@ type AddIssueNoteOptions struct {
 
 // CreateMergeRequestOptions contains options for creating a merge request.
 type CreateMergeRequestOptions struct {
-	SourceBranch        string
-	TargetBranch        string
-	Title               string
-	Description         string
-	Assignees           []any // Can be usernames (string) or IDs (int)
-	Reviewers           []any // Can be usernames (string) or IDs (int)
-	Labels              []string
-	Milestone           any   // Can be title (string) or ID (int)
-	RemoveSourceBranch  bool
-	Draft               bool
+	SourceBranch       string
+	TargetBranch       string
+	Title              string
+	Description        string
+	Assignees          []any // Can be usernames (string) or IDs (int)
+	Reviewers          []any // Can be usernames (string) or IDs (int)
+	Labels             []string
+	Milestone          any // Can be title (string) or ID (int)
+	RemoveSourceBranch bool
+	Draft              bool
 }
 
 // Issue represents a GitLab issue.
 type Issue struct {
-	ID          int64                  `json:"id"`
-	IID         int64                  `json:"iid"`
-	Title       string                 `json:"title"`
-	Description string                 `json:"description"`
-	State       string                 `json:"state"`
-	Labels      []string               `json:"labels"`
+	ID          int64            `json:"id"`
+	IID         int64            `json:"iid"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	State       string           `json:"state"`
+	Labels      []string         `json:"labels"`
 	Assignees   []map[string]any `json:"assignees"`
-	CreatedAt   string                 `json:"created_at"`
-	UpdatedAt   string                 `json:"updated_at"`
+	CreatedAt   string           `json:"created_at"`
+	UpdatedAt   string           `json:"updated_at"`
 }
 
 // Label represents a GitLab label.
@@ -215,33 +214,33 @@ type Label struct {
 
 // Note represents a GitLab note/comment.
 type Note struct {
-	ID        int64                    `json:"id"`
-	Body      string                   `json:"body"`
-	Author    map[string]any   `json:"author"`
-	CreatedAt string           `json:"created_at"`
-	UpdatedAt string           `json:"updated_at"`
-	System    bool             `json:"system"`
-	Noteable  map[string]any   `json:"noteable"`
+	ID        int64          `json:"id"`
+	Body      string         `json:"body"`
+	Author    map[string]any `json:"author"`
+	CreatedAt string         `json:"created_at"`
+	UpdatedAt string         `json:"updated_at"`
+	System    bool           `json:"system"`
+	Noteable  map[string]any `json:"noteable"`
 }
 
 // MergeRequest represents a GitLab merge request.
 type MergeRequest struct {
-	ID                 int64                    `json:"id"`
-	IID                int64                    `json:"iid"`
-	Title              string                   `json:"title"`
-	Description        string                   `json:"description"`
-	State              string                   `json:"state"`
-	SourceBranch       string                   `json:"source_branch"`
-	TargetBranch       string                   `json:"target_branch"`
-	Author             map[string]any   `json:"author"`
-	Assignees          []map[string]any `json:"assignees"`
-	Reviewers          []map[string]any `json:"reviewers"`
-	Labels             []string         `json:"labels"`
-	Milestone          map[string]any   `json:"milestone"`
-	WebURL             string                   `json:"web_url"`
-	Draft              bool                     `json:"draft"`
-	CreatedAt          string                   `json:"created_at"`
-	UpdatedAt          string                   `json:"updated_at"`
+	ID           int64            `json:"id"`
+	IID          int64            `json:"iid"`
+	Title        string           `json:"title"`
+	Description  string           `json:"description"`
+	State        string           `json:"state"`
+	SourceBranch string           `json:"source_branch"`
+	TargetBranch string           `json:"target_branch"`
+	Author       map[string]any   `json:"author"`
+	Assignees    []map[string]any `json:"assignees"`
+	Reviewers    []map[string]any `json:"reviewers"`
+	Labels       []string         `json:"labels"`
+	Milestone    map[string]any   `json:"milestone"`
+	WebURL       string           `json:"web_url"`
+	Draft        bool             `json:"draft"`
+	CreatedAt    string           `json:"created_at"`
+	UpdatedAt    string           `json:"updated_at"`
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -363,7 +362,7 @@ func normalizeListIssuesOptions(opts *ListIssuesOptions) *ListIssuesOptions {
 // ListProjectIssues retrieves issues for a given project path.
 func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]Issue, error) {
 	a.logger.Debug("Listing issues for project", "project_path", projectPath, "options", opts)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -419,9 +418,9 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	if opts.Title == "" {
 		return nil, ErrIssueTitleRequired
 	}
-	
+
 	a.logger.Debug("Creating issue for project", "project_path", projectPath, "title", opts.Title)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -464,10 +463,10 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	a.logger.Debug("Created issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
 
 	result := convertGitLabIssue(issue)
-	a.logger.Info("Successfully created issue", 
-		"id", result.ID, 
-		"iid", result.IID, 
-		"project_id", projectID, 
+	a.logger.Info("Successfully created issue",
+		"id", result.ID,
+		"iid", result.IID,
+		"project_id", projectID,
 		"title", result.Title)
 	return &result, nil
 }
@@ -475,7 +474,7 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 // ListProjectLabels retrieves labels for a given project path.
 func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]Label, error) {
 	a.logger.Debug("Listing labels for project", "project_path", projectPath, "options", opts)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -553,9 +552,9 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *Updat
 	if opts == nil {
 		return nil, ErrUpdateOptionsRequired
 	}
-	
+
 	a.logger.Debug("Updating issue for project", "project_path", projectPath, "issue_iid", issueIID)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -570,11 +569,11 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *Updat
 	if opts.Title != "" {
 		updateOpts.Title = &opts.Title
 	}
-	
+
 	if opts.Description != "" {
 		updateOpts.Description = &opts.Description
 	}
-	
+
 	if opts.State != "" {
 		updateOpts.StateEvent = &opts.State
 	}
@@ -600,10 +599,10 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *Updat
 	a.logger.Debug("Updated issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
 
 	result := convertGitLabIssue(issue)
-	a.logger.Info("Successfully updated issue", 
-		"id", result.ID, 
-		"iid", result.IID, 
-		"project_id", projectID, 
+	a.logger.Info("Successfully updated issue",
+		"id", result.ID,
+		"iid", result.IID,
+		"project_id", projectID,
 		"title", result.Title)
 	return &result, nil
 }
@@ -617,9 +616,9 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 	if opts == nil || opts.Body == "" {
 		return nil, ErrNoteBodyRequired
 	}
-	
+
 	a.logger.Debug("Adding note to issue", "project_path", projectPath, "issue_iid", issueIID)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -669,9 +668,9 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 		}
 	}
 
-	a.logger.Info("Successfully added note to issue", 
-		"note_id", result.ID, 
-		"project_id", projectID, 
+	a.logger.Info("Successfully added note to issue",
+		"note_id", result.ID,
+		"project_id", projectID,
 		"issue_iid", issueIID)
 	return result, nil
 }
@@ -681,13 +680,13 @@ func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeReq
 	if err := a.validateMergeRequestOptions(opts); err != nil {
 		return nil, err
 	}
-	
-	a.logger.Debug("Creating merge request for project", 
-		"project_path", projectPath, 
+
+	a.logger.Debug("Creating merge request for project",
+		"project_path", projectPath,
 		"title", opts.Title,
 		"source_branch", opts.SourceBranch,
 		"target_branch", opts.TargetBranch)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -705,27 +704,26 @@ func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeReq
 	// Call GitLab API
 	mr, _, err := a.client.MergeRequests().CreateMergeRequest(projectID, createOpts)
 	if err != nil {
-		a.logger.Error("Failed to create merge request", 
-			"error", err, 
-			"project_id", projectID, 
+		a.logger.Error("Failed to create merge request",
+			"error", err,
+			"project_id", projectID,
 			"title", opts.Title)
 		return nil, fmt.Errorf("failed to create merge request: %w", err)
 	}
 
-	a.logger.Debug("Created merge request", 
-		"id", mr.ID, 
-		"iid", mr.IID, 
+	a.logger.Debug("Created merge request",
+		"id", mr.ID,
+		"iid", mr.IID,
 		"project_id", projectID)
 
 	result := convertGitLabMergeRequest(mr)
-	a.logger.Info("Successfully created merge request", 
-		"id", result.ID, 
-		"iid", result.IID, 
-		"project_id", projectID, 
+	a.logger.Info("Successfully created merge request",
+		"id", result.ID,
+		"iid", result.IID,
+		"project_id", projectID,
 		"title", result.Title)
 	return &result, nil
 }
-
 
 // ProjectInfo represents basic project information.
 type ProjectInfo struct {
@@ -739,23 +737,23 @@ type ProjectInfo struct {
 // GetProjectDescription retrieves the description of a GitLab project.
 func (a *App) GetProjectDescription(projectPath string) (*ProjectInfo, error) {
 	a.logger.Debug("Getting project description", "project_path", projectPath)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
-	
+
 	result := &ProjectInfo{
 		ID:          project.ID,
 		Name:        project.Name,
 		Path:        project.Path,
 		Description: project.Description,
 	}
-	
-	a.logger.Info("Successfully retrieved project description", 
-		"project_id", project.ID, 
+
+	a.logger.Info("Successfully retrieved project description",
+		"project_id", project.ID,
 		"project_path", projectPath)
 	return result, nil
 }
@@ -763,7 +761,7 @@ func (a *App) GetProjectDescription(projectPath string) (*ProjectInfo, error) {
 // UpdateProjectDescription updates the description of a GitLab project.
 func (a *App) UpdateProjectDescription(projectPath string, description string) (*ProjectInfo, error) {
 	a.logger.Debug("Updating project description", "project_path", projectPath)
-	
+
 	// Get project by path first to get the ID
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -771,19 +769,19 @@ func (a *App) UpdateProjectDescription(projectPath string, description string) (
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 	projectID := project.ID
-	
+
 	// Create update options
 	updateOpts := &gitlab.EditProjectOptions{
 		Description: &description,
 	}
-	
+
 	// Update the project
 	updatedProject, _, err := a.client.Projects().EditProject(projectID, updateOpts)
 	if err != nil {
 		a.logger.Error("Failed to update project description", "error", err, "project_id", projectID)
 		return nil, fmt.Errorf("failed to update project description: %w", err)
 	}
-	
+
 	result := &ProjectInfo{
 		ID:          updatedProject.ID,
 		Name:        updatedProject.Name,
@@ -791,9 +789,9 @@ func (a *App) UpdateProjectDescription(projectPath string, description string) (
 		Description: updatedProject.Description,
 		Topics:      updatedProject.Topics,
 	}
-	
-	a.logger.Info("Successfully updated project description", 
-		"project_id", projectID, 
+
+	a.logger.Info("Successfully updated project description",
+		"project_id", projectID,
 		"project_path", projectPath)
 	return result, nil
 }
@@ -801,23 +799,23 @@ func (a *App) UpdateProjectDescription(projectPath string, description string) (
 // GetProjectTopics retrieves the topics of a GitLab project.
 func (a *App) GetProjectTopics(projectPath string) (*ProjectInfo, error) {
 	a.logger.Debug("Getting project topics", "project_path", projectPath)
-	
+
 	// Get project by path
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
-	
+
 	result := &ProjectInfo{
 		ID:     project.ID,
 		Name:   project.Name,
 		Path:   project.Path,
 		Topics: project.Topics,
 	}
-	
-	a.logger.Info("Successfully retrieved project topics", 
-		"project_id", project.ID, 
+
+	a.logger.Info("Successfully retrieved project topics",
+		"project_id", project.ID,
 		"project_path", projectPath,
 		"topics_count", len(project.Topics))
 	return result, nil
@@ -826,7 +824,7 @@ func (a *App) GetProjectTopics(projectPath string) (*ProjectInfo, error) {
 // UpdateProjectTopics updates the topics of a GitLab project.
 func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*ProjectInfo, error) {
 	a.logger.Debug("Updating project topics", "project_path", projectPath, "topics", topics)
-	
+
 	// Get project by path first to get the ID
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
@@ -834,19 +832,19 @@ func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*Project
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 	projectID := project.ID
-	
+
 	// Create update options
 	updateOpts := &gitlab.EditProjectOptions{
 		Topics: &topics,
 	}
-	
+
 	// Update the project
 	updatedProject, _, err := a.client.Projects().EditProject(projectID, updateOpts)
 	if err != nil {
 		a.logger.Error("Failed to update project topics", "error", err, "project_id", projectID)
 		return nil, fmt.Errorf("failed to update project topics: %w", err)
 	}
-	
+
 	result := &ProjectInfo{
 		ID:          updatedProject.ID,
 		Name:        updatedProject.Name,
@@ -854,9 +852,9 @@ func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*Project
 		Description: updatedProject.Description,
 		Topics:      updatedProject.Topics,
 	}
-	
-	a.logger.Info("Successfully updated project topics", 
-		"project_id", projectID, 
+
+	a.logger.Info("Successfully updated project topics",
+		"project_id", projectID,
 		"project_path", projectPath,
 		"topics_count", len(updatedProject.Topics))
 	return result, nil
@@ -978,7 +976,7 @@ func (a *App) findUserByUsername(username string) (int64, error) {
 
 	// Search for the user
 	listOpts := &gitlab.ListUsersOptions{
-		Username: &username,
+		Username:    &username,
 		ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
 	}
 
@@ -1017,20 +1015,20 @@ func (a *App) resolveMilestoneIdentifier(projectID int64, identifier any) (int64
 // findMilestoneByTitle searches for a milestone by title and returns its ID.
 func (a *App) findMilestoneByTitle(projectID int64, title string) (int64, error) {
 	a.logger.Debug("Searching for milestone by title", "project_id", projectID, "title", title)
-	
+
 	// Search for active milestones
 	state := "active"
 	listOpts := &gitlab.ListMilestonesOptions{
 		State:       &state,
 		ListOptions: gitlab.ListOptions{PerPage: maxMilestonesPerPage, Page: 1},
 	}
-	
+
 	milestones, _, err := a.client.Milestones().ListMilestones(projectID, listOpts)
 	if err != nil {
 		a.logger.Error("Failed to list milestones", "error", err, "project_id", projectID)
 		return 0, fmt.Errorf("failed to list milestones: %w", err)
 	}
-	
+
 	// Look for exact match
 	for _, milestone := range milestones {
 		if milestone.Title == title {
@@ -1038,7 +1036,7 @@ func (a *App) findMilestoneByTitle(projectID int64, title string) (int64, error)
 			return milestone.ID, nil
 		}
 	}
-	
+
 	a.logger.Error("Milestone not found", "title", title)
 	return 0, fmt.Errorf("%w: %s", ErrMilestoneNotFound, title)
 }
