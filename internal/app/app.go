@@ -28,8 +28,10 @@ var (
 	ErrCreateOptionsRequired          = errors.New("create issue options are required")
 	ErrIssueTitleRequired             = errors.New("issue title is required")
 	ErrInvalidIssueIID                = errors.New("issue IID must be a positive integer")
+	ErrInvalidMergeRequestIID         = errors.New("merge request IID must be a positive integer")
 	ErrUpdateOptionsRequired          = errors.New("update issue options are required")
 	ErrNoteBodyRequired               = errors.New("note body is required")
+	ErrMRNoteBodyRequired             = errors.New("merge request note body is required")
 	ErrCreateMROptionsRequired        = errors.New("create merge request options are required")
 	ErrMRTitleRequired                = errors.New("merge request title is required")
 	ErrMRSourceBranchRequired         = errors.New("merge request source branch is required")
@@ -167,6 +169,11 @@ type ListLabelsOptions struct {
 
 // AddIssueNoteOptions contains options for adding a note to an issue.
 type AddIssueNoteOptions struct {
+	Body string
+}
+
+// AddMergeRequestNoteOptions contains options for adding a note to a merge request.
+type AddMergeRequestNoteOptions struct {
 	Body string
 }
 
@@ -672,6 +679,79 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 		"note_id", result.ID,
 		"project_id", projectID,
 		"issue_iid", issueIID)
+	return result, nil
+}
+
+// AddMergeRequestNote adds a note/comment to an existing merge request.
+func (a *App) AddMergeRequestNote(
+	projectPath string, mergeRequestIID int64, opts *AddMergeRequestNoteOptions,
+) (*Note, error) {
+	// Validate required parameters
+	if mergeRequestIID <= 0 {
+		return nil, ErrInvalidMergeRequestIID
+	}
+	if opts == nil || opts.Body == "" {
+		return nil, ErrMRNoteBodyRequired
+	}
+
+	a.logger.Debug("Adding note to merge request",
+		"project_path", projectPath, "merge_request_iid", mergeRequestIID)
+
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
+
+	// Create GitLab API options
+	createOpts := &gitlab.CreateMergeRequestNoteOptions{
+		Body: &opts.Body,
+	}
+
+	// Call GitLab API
+	note, _, err := a.client.Notes().CreateMergeRequestNote(projectID, mergeRequestIID, createOpts)
+	if err != nil {
+		a.logger.Error("Failed to create merge request note",
+			"error", err, "project_id", projectID, "merge_request_iid", mergeRequestIID)
+		return nil, fmt.Errorf("failed to create merge request note: %w", err)
+	}
+
+	a.logger.Debug("Created merge request note",
+		"id", note.ID, "project_id", projectID, "merge_request_iid", mergeRequestIID)
+
+	// Convert GitLab note to our Note struct
+	result := &Note{
+		ID:        note.ID,
+		Body:      note.Body,
+		System:    note.System,
+		CreatedAt: note.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: note.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+
+	// Convert author information
+	if note.Author.ID != 0 {
+		result.Author = map[string]any{
+			"id":       note.Author.ID,
+			"username": note.Author.Username,
+			"name":     note.Author.Name,
+		}
+	}
+
+	// Convert noteable information
+	if note.NoteableID != 0 {
+		result.Noteable = map[string]any{
+			"id":   note.NoteableID,
+			"iid":  note.NoteableIID,
+			"type": note.NoteableType,
+		}
+	}
+
+	a.logger.Info("Successfully added note to merge request",
+		"note_id", result.ID,
+		"project_id", projectID,
+		"merge_request_iid", mergeRequestIID)
 	return result, nil
 }
 

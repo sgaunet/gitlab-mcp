@@ -35,6 +35,11 @@ type NotesService interface {
 		issue int64,
 		opt *gitlab.CreateIssueNoteOptions,
 	) (*gitlab.Note, *gitlab.Response, error)
+	CreateMergeRequestNote(
+		pid any,
+		mergeRequest int64,
+		opt *gitlab.CreateMergeRequestNoteOptions,
+	) (*gitlab.Note, *gitlab.Response, error)
 }
 
 // MergeRequestsService interface for GitLab MergeRequests operations.

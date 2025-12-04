@@ -1251,6 +1251,155 @@ func TestApp_AddIssueNote_InvalidIssueIID(t *testing.T) {
 	assert.Nil(t, got)
 }
 
+func TestApp_AddMergeRequestNote(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name    string
+		opts    *AddMergeRequestNoteOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockNotesService)
+		want    *Note
+		wantErr bool
+	}{
+		{
+			name: "successful note creation",
+			opts: &AddMergeRequestNoteOptions{Body: "This is a test MR note"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
+				client.On("Projects").Return(projects)
+				client.On("Notes").Return(notes)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.CreateMergeRequestNoteOptions{
+					Body: gitlab.Ptr("This is a test MR note"),
+				}
+
+				notes.On("CreateMergeRequestNote", int64(123), int64(10), expectedOpts).Return(
+					&gitlab.Note{
+						ID:           1,
+						Body:         "This is a test MR note",
+						System:       false,
+						Author:       gitlab.NoteAuthor{ID: 1, Username: "testuser", Name: "Test User"},
+						CreatedAt:    &testTime,
+						UpdatedAt:    &testTime,
+						NoteableID:   50,
+						NoteableIID:  10,
+						NoteableType: "MergeRequest",
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			want: &Note{
+				ID:        1,
+				Body:      "This is a test MR note",
+				System:    false,
+				Author:    map[string]interface{}{"id": int64(1), "username": "testuser", "name": "Test User"},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				Noteable:  map[string]interface{}{"id": int64(50), "iid": int64(10), "type": "MergeRequest"},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nil options",
+			opts:    nil,
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockNotesService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "empty body",
+			opts:    &AddMergeRequestNoteOptions{Body: ""},
+			setup:   func(*MockGitLabClient, *MockProjectsService, *MockNotesService) {},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "project not found",
+			opts: &AddMergeRequestNoteOptions{Body: "Test note"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
+				client.On("Projects").Return(projects)
+
+				projects.On("GetProject", "invalid/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("project not found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "create note API error",
+			opts: &AddMergeRequestNoteOptions{Body: "Test note"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, notes *MockNotesService) {
+				client.On("Projects").Return(projects)
+				client.On("Notes").Return(notes)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.CreateMergeRequestNoteOptions{
+					Body: gitlab.Ptr("Test note"),
+				}
+
+				notes.On("CreateMergeRequestNote", int64(123), int64(10), expectedOpts).Return(
+					(*gitlab.Note)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockNotes := &MockNotesService{}
+
+			tt.setup(mockClient, mockProjects, mockNotes)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+
+			projectPath := "test/project"
+			if tt.name == "project not found" {
+				projectPath = "invalid/project"
+			}
+			got, err := app.AddMergeRequestNote(projectPath, 10, tt.opts)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockNotes.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_AddMergeRequestNote_InvalidMergeRequestIID(t *testing.T) {
+	app := NewWithClient("token", "https://gitlab.com/", &MockGitLabClient{})
+	opts := &AddMergeRequestNoteOptions{Body: "Test note"}
+
+	// Test negative IID
+	got, err := app.AddMergeRequestNote("test/project", -1, opts)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidMergeRequestIID, err)
+	assert.Nil(t, got)
+
+	// Test zero IID
+	got, err = app.AddMergeRequestNote("test/project", 0, opts)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidMergeRequestIID, err)
+	assert.Nil(t, got)
+}
+
 func TestApp_CreateProjectMergeRequest(t *testing.T) {
 	testTime := time.Now()
 
