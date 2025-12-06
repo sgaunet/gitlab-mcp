@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
-	"gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 // Constants for default values.
@@ -624,62 +624,15 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 		return nil, ErrNoteBodyRequired
 	}
 
-	a.logger.Debug("Adding note to issue", "project_path", projectPath, "issue_iid", issueIID)
-
-	// Get project by path
-	project, _, err := a.client.Projects().GetProject(projectPath, nil)
-	if err != nil {
-		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
-	}
-	projectID := project.ID
-
-	// Create GitLab API options
-	createOpts := &gitlab.CreateIssueNoteOptions{
-		Body: &opts.Body,
-	}
-
-	// Call GitLab API
-	note, _, err := a.client.Notes().CreateIssueNote(projectID, issueIID, createOpts)
-	if err != nil {
-		a.logger.Error("Failed to create issue note", "error", err, "project_id", projectID, "issue_iid", issueIID)
-		return nil, fmt.Errorf("failed to create issue note: %w", err)
-	}
-
-	a.logger.Debug("Created issue note", "id", note.ID, "project_id", projectID, "issue_iid", issueIID)
-
-	// Convert GitLab note to our Note struct
-	result := &Note{
-		ID:        note.ID,
-		Body:      note.Body,
-		System:    note.System,
-		CreatedAt: note.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: note.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-
-	// Convert author information
-	if note.Author.ID != 0 {
-		result.Author = map[string]any{
-			"id":       note.Author.ID,
-			"username": note.Author.Username,
-			"name":     note.Author.Name,
+	createNote := func(projectID int64, iid int64, body string) (*gitlab.Note, error) {
+		createOpts := &gitlab.CreateIssueNoteOptions{Body: &body}
+		note, _, err := a.client.Notes().CreateIssueNote(projectID, iid, createOpts)
+		if err != nil {
+			return nil, fmt.Errorf("gitlab API call failed: %w", err)
 		}
+		return note, nil
 	}
-
-	// Convert noteable information
-	if note.NoteableID != 0 {
-		result.Noteable = map[string]any{
-			"id":   note.NoteableID,
-			"iid":  note.NoteableIID,
-			"type": note.NoteableType,
-		}
-	}
-
-	a.logger.Info("Successfully added note to issue",
-		"note_id", result.ID,
-		"project_id", projectID,
-		"issue_iid", issueIID)
-	return result, nil
+	return a.addNoteCommon(projectPath, issueIID, opts.Body, "issue", createNote)
 }
 
 // AddMergeRequestNote adds a note/comment to an existing merge request.
@@ -694,65 +647,15 @@ func (a *App) AddMergeRequestNote(
 		return nil, ErrMRNoteBodyRequired
 	}
 
-	a.logger.Debug("Adding note to merge request",
-		"project_path", projectPath, "merge_request_iid", mergeRequestIID)
-
-	// Get project by path
-	project, _, err := a.client.Projects().GetProject(projectPath, nil)
-	if err != nil {
-		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
-	}
-	projectID := project.ID
-
-	// Create GitLab API options
-	createOpts := &gitlab.CreateMergeRequestNoteOptions{
-		Body: &opts.Body,
-	}
-
-	// Call GitLab API
-	note, _, err := a.client.Notes().CreateMergeRequestNote(projectID, mergeRequestIID, createOpts)
-	if err != nil {
-		a.logger.Error("Failed to create merge request note",
-			"error", err, "project_id", projectID, "merge_request_iid", mergeRequestIID)
-		return nil, fmt.Errorf("failed to create merge request note: %w", err)
-	}
-
-	a.logger.Debug("Created merge request note",
-		"id", note.ID, "project_id", projectID, "merge_request_iid", mergeRequestIID)
-
-	// Convert GitLab note to our Note struct
-	result := &Note{
-		ID:        note.ID,
-		Body:      note.Body,
-		System:    note.System,
-		CreatedAt: note.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: note.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-
-	// Convert author information
-	if note.Author.ID != 0 {
-		result.Author = map[string]any{
-			"id":       note.Author.ID,
-			"username": note.Author.Username,
-			"name":     note.Author.Name,
+	createNote := func(projectID int64, iid int64, body string) (*gitlab.Note, error) {
+		createOpts := &gitlab.CreateMergeRequestNoteOptions{Body: &body}
+		note, _, err := a.client.Notes().CreateMergeRequestNote(projectID, iid, createOpts)
+		if err != nil {
+			return nil, fmt.Errorf("gitlab API call failed: %w", err)
 		}
+		return note, nil
 	}
-
-	// Convert noteable information
-	if note.NoteableID != 0 {
-		result.Noteable = map[string]any{
-			"id":   note.NoteableID,
-			"iid":  note.NoteableIID,
-			"type": note.NoteableType,
-		}
-	}
-
-	a.logger.Info("Successfully added note to merge request",
-		"note_id", result.ID,
-		"project_id", projectID,
-		"merge_request_iid", mergeRequestIID)
-	return result, nil
+	return a.addNoteCommon(projectPath, mergeRequestIID, opts.Body, "merge request", createNote)
 }
 
 // CreateProjectMergeRequest creates a new merge request for a given project path.
@@ -937,6 +840,73 @@ func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*Project
 		"project_id", projectID,
 		"project_path", projectPath,
 		"topics_count", len(updatedProject.Topics))
+	return result, nil
+}
+
+// convertGitLabNote converts a GitLab note to our Note struct.
+func convertGitLabNote(note *gitlab.Note) *Note {
+	result := &Note{
+		ID:        note.ID,
+		Body:      note.Body,
+		System:    note.System,
+		CreatedAt: note.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: note.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+
+	// Convert author information
+	if note.Author.ID != 0 {
+		result.Author = map[string]any{
+			"id":       note.Author.ID,
+			"username": note.Author.Username,
+			"name":     note.Author.Name,
+		}
+	}
+
+	// Convert noteable information
+	if note.NoteableID != 0 {
+		result.Noteable = map[string]any{
+			"id":   note.NoteableID,
+			"iid":  note.NoteableIID,
+			"type": note.NoteableType,
+		}
+	}
+
+	return result
+}
+
+// addNoteCommon handles common logic for adding notes.
+func (a *App) addNoteCommon(
+	projectPath string,
+	iid int64,
+	body string,
+	noteType string,
+	createNote func(projectID int64, iid int64, body string) (*gitlab.Note, error),
+) (*Note, error) {
+	a.logger.Debug("Adding note", "type", noteType, "project_path", projectPath, "iid", iid)
+
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	projectID := project.ID
+
+	// Call GitLab API using the provided function
+	note, err := createNote(projectID, iid, body)
+	if err != nil {
+		a.logger.Error("Failed to create note", "type", noteType, "error", err,
+			"project_id", projectID, "iid", iid)
+		return nil, fmt.Errorf("failed to create %s note: %w", noteType, err)
+	}
+
+	a.logger.Debug("Created note", "type", noteType, "id", note.ID,
+		"project_id", projectID, "iid", iid)
+
+	result := convertGitLabNote(note)
+
+	a.logger.Info("Successfully added note", "type", noteType, "note_id", result.ID,
+		"project_id", projectID, "iid", iid)
 	return result, nil
 }
 
