@@ -53,6 +53,16 @@ func (g *GitLabClientWrapper) Milestones() MilestonesService {
 	return &MilestonesServiceWrapper{service: g.client.Milestones}
 }
 
+// Groups returns the Groups service.
+func (g *GitLabClientWrapper) Groups() GroupsService {
+	return &GroupsServiceWrapper{service: g.client.Groups}
+}
+
+// Epics returns the Epics service.
+func (g *GitLabClientWrapper) Epics() EpicsService {
+	return &EpicsServiceWrapper{service: g.client.Epics}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -215,4 +225,36 @@ func (m *MilestonesServiceWrapper) ListMilestones(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return milestones, resp, nil
+}
+
+// GroupsServiceWrapper wraps the real Groups service.
+type GroupsServiceWrapper struct {
+	service gitlab.GroupsServiceInterface
+}
+
+func (g *GroupsServiceWrapper) GetGroup(
+	gid any,
+	opt *gitlab.GetGroupOptions,
+) (*gitlab.Group, *gitlab.Response, error) {
+	group, resp, err := g.service.GetGroup(gid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return group, resp, nil
+}
+
+// EpicsServiceWrapper wraps the real Epics service.
+type EpicsServiceWrapper struct {
+	service gitlab.EpicsServiceInterface
+}
+
+func (e *EpicsServiceWrapper) ListGroupEpics(
+	gid any,
+	opt *gitlab.ListGroupEpicsOptions,
+) ([]*gitlab.Epic, *gitlab.Response, error) {
+	epics, resp, err := e.service.ListGroupEpics(gid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return epics, resp, nil
 }

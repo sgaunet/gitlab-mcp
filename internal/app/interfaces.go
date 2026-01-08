@@ -10,6 +10,11 @@ type ProjectsService interface {
 	EditProject(pid any, opt *gitlab.EditProjectOptions) (*gitlab.Project, *gitlab.Response, error)
 }
 
+// GroupsService interface for GitLab Groups operations.
+type GroupsService interface {
+	GetGroup(gid any, opt *gitlab.GetGroupOptions) (*gitlab.Group, *gitlab.Response, error)
+}
+
 // IssuesService interface for GitLab Issues operations.
 type IssuesService interface {
 	ListProjectIssues(pid any, opt *gitlab.ListProjectIssuesOptions) ([]*gitlab.Issue, *gitlab.Response, error)
@@ -55,6 +60,11 @@ type MilestonesService interface {
 	ListMilestones(pid any, opt *gitlab.ListMilestonesOptions) ([]*gitlab.Milestone, *gitlab.Response, error)
 }
 
+// EpicsService interface for GitLab Epics operations.
+type EpicsService interface {
+	ListGroupEpics(gid any, opt *gitlab.ListGroupEpicsOptions) ([]*gitlab.Epic, *gitlab.Response, error)
+}
+
 // GitLabClient interface that provides access to all GitLab services.
 type GitLabClient interface {
 	Projects() ProjectsService
@@ -64,4 +74,6 @@ type GitLabClient interface {
 	Notes() NotesService
 	MergeRequests() MergeRequestsService
 	Milestones() MilestonesService
+	Groups() GroupsService
+	Epics() EpicsService
 }
