@@ -258,3 +258,14 @@ func (e *EpicsServiceWrapper) ListGroupEpics(
 	}
 	return epics, resp, nil
 }
+
+func (e *EpicsServiceWrapper) CreateEpic(
+	gid any,
+	opt *gitlab.CreateEpicOptions,
+) (*gitlab.Epic, *gitlab.Response, error) {
+	epic, resp, err := e.service.CreateEpic(gid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return epic, resp, nil
+}

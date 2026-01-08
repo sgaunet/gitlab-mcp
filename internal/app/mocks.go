@@ -249,3 +249,17 @@ func (m *MockEpicsService) ListGroupEpics(
 	response, _ := args.Get(1).(*gitlab.Response)
 	return epics, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
+
+func (m *MockEpicsService) CreateEpic(
+	gid any,
+	opt *gitlab.CreateEpicOptions,
+) (*gitlab.Epic, *gitlab.Response, error) {
+	args := m.Called(gid, opt)
+	if args.Get(0) == nil {
+		response, _ := args.Get(1).(*gitlab.Response)
+		return nil, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+	}
+	epic, _ := args.Get(0).(*gitlab.Epic)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return epic, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
