@@ -539,6 +539,74 @@ func handleListEpicsRequest(
 	}
 }
 
+// setupCreateEpicTool creates and registers the create_epic tool.
+func setupCreateEpicTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	createEpicTool := mcp.NewTool("create_epic",
+		mcp.WithDescription("Create a new epic in a GitLab group. "+
+			"Note: Epics require GitLab Premium or Ultimate tier."),
+		mcp.WithString("group_path",
+			mcp.Required(),
+			mcp.Description("GitLab group path (e.g., 'myorg' or 'parent/subgroup')"),
+		),
+		mcp.WithString("title",
+			mcp.Required(),
+			mcp.Description("Epic title"),
+		),
+		mcp.WithString("description",
+			mcp.Description("Epic description (optional)"),
+		),
+		mcp.WithArray("labels",
+			mcp.Description("Array of label names (optional)"),
+		),
+		mcp.WithString("start_date",
+			mcp.Description("Start date in YYYY-MM-DD format (optional)"),
+		),
+		mcp.WithString("due_date",
+			mcp.Description("Due date in YYYY-MM-DD format (optional)"),
+		),
+		mcp.WithBoolean("confidential",
+			mcp.Description("Whether epic is confidential (default: false)"),
+		),
+	)
+
+	s.AddTool(createEpicTool, handleCreateEpicRequest(appInstance, debugLogger))
+}
+
+// handleCreateEpicRequest handles the create_epic tool request.
+func handleCreateEpicRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received create_epic tool request", "args", args)
+
+		// Extract and validate parameters
+		groupPath, opts, validationErr := extractCreateEpicParams(args, debugLogger)
+		if validationErr != nil {
+			return validationErr, nil
+		}
+
+		debugLogger.Debug("Processing create_epic request", "group_path", groupPath, "opts", opts)
+
+		// Call the app method
+		epic, appErr := appInstance.CreateGroupEpic(groupPath, opts)
+		if appErr != nil {
+			return handleCreateEpicError(appErr, groupPath, debugLogger), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(epic)
+		if err != nil {
+			debugLogger.Error("Failed to marshal epic to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format epic response"), nil
+		}
+
+		debugLogger.Info("Successfully created epic", "id", epic.ID, "iid", epic.IID, "group_path", groupPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -1141,7 +1209,87 @@ func initializeApp() (*app.App, *slog.Logger) {
 	return appInstance, debugLogger
 }
 
-// registerAllTools registers all available tools with the MCP server.
+// extractCreateEpicParams extracts and validates parameters for create_epic.
+func extractCreateEpicParams(
+	args map[string]any,
+	debugLogger *slog.Logger,
+) (string, *app.CreateEpicOptions, *mcp.CallToolResult) {
+	// Extract required parameters
+	groupPath, ok := args["group_path"].(string)
+	if !ok || groupPath == "" {
+		debugLogger.Error("group_path is not a valid string", "value", args["group_path"])
+		return "", nil, mcp.NewToolResultError("group_path must be a non-empty string")
+	}
+
+	title, ok := args["title"].(string)
+	if !ok || title == "" {
+		debugLogger.Error("title is not a valid string", "value", args["title"])
+		return "", nil, mcp.NewToolResultError("title must be a non-empty string")
+	}
+
+	// Build options with required and optional parameters
+	opts := buildCreateEpicOptions(title, args)
+
+	return groupPath, opts, nil
+}
+
+// buildCreateEpicOptions builds CreateEpicOptions from request arguments.
+func buildCreateEpicOptions(title string, args map[string]any) *app.CreateEpicOptions {
+	opts := &app.CreateEpicOptions{
+		Title: title,
+	}
+
+	// Extract optional parameters
+	if desc, ok := args["description"].(string); ok {
+		opts.Description = desc
+	}
+
+	if labelsRaw, ok := args["labels"].([]any); ok {
+		opts.Labels = extractStringArray(labelsRaw)
+	}
+
+	if startDate, ok := args["start_date"].(string); ok && startDate != "" {
+		opts.StartDate = startDate
+	}
+
+	if dueDate, ok := args["due_date"].(string); ok && dueDate != "" {
+		opts.DueDate = dueDate
+	}
+
+	if conf, ok := args["confidential"].(bool); ok {
+		opts.Confidential = conf
+	}
+
+	return opts
+}
+
+// handleCreateEpicError handles errors from CreateGroupEpic.
+func handleCreateEpicError(err error, groupPath string, debugLogger *slog.Logger) *mcp.CallToolResult {
+	debugLogger.Error("Failed to create epic", "error", err, "group_path", groupPath)
+
+	if errors.Is(err, app.ErrEpicsTierRequired) {
+		return mcp.NewToolResultError(fmt.Sprintf(
+			"Failed to create epic: %v\n\n"+
+				"Epics are a GitLab Premium/Ultimate feature. "+
+				"See: https://docs.gitlab.com/ee/user/group/epics/",
+			err,
+		))
+	}
+
+	return mcp.NewToolResultError(fmt.Sprintf("Failed to create epic: %v", err))
+}
+
+// extractStringArray extracts a string array from an interface array.
+func extractStringArray(raw []any) []string {
+	result := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if str, ok := item.(string); ok {
+			result = append(result, str)
+		}
+	}
+	return result
+}
+
 func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	setupListIssuesTool(s, appInstance, debugLogger)
 	setupCreateIssueTool(s, appInstance, debugLogger)
@@ -1155,6 +1303,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupGetProjectTopicsTool(s, appInstance, debugLogger)
 	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
 	setupListEpicsTool(s, appInstance, debugLogger)
+	setupCreateEpicTool(s, appInstance, debugLogger)
 }
 
 func main() {

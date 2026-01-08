@@ -2321,3 +2321,351 @@ func TestApp_UpdateProjectTopics(t *testing.T) {
 		})
 	}
 }
+
+func TestApp_CreateGroupEpic(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name    string
+		opts    *CreateEpicOptions
+		setup   func(*MockGitLabClient, *MockGroupsService, *MockEpicsService)
+		want    *Epic
+		wantErr bool
+		errType error
+	}{
+		{
+			name: "successful create with all optional fields",
+			opts: &CreateEpicOptions{
+				Title:        "Test Epic",
+				Description:  "Test Description",
+				Labels:       []string{"epic", "high-priority"},
+				StartDate:    "2024-03-01",
+				DueDate:      "2024-06-30",
+				Confidential: true,
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				startDate := gitlab.ISOTime(time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC))
+				dueDate := gitlab.ISOTime(time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC))
+				fixed := true
+				labels := gitlab.LabelOptions{"epic", "high-priority"}
+				confidential := true
+
+				expectedOpts := &gitlab.CreateEpicOptions{
+					Title:            gitlab.Ptr("Test Epic"),
+					Description:      gitlab.Ptr("Test Description"),
+					Labels:           &labels,
+					StartDateIsFixed: &fixed,
+					StartDateFixed:   &startDate,
+					DueDateIsFixed:   &fixed,
+					DueDateFixed:     &dueDate,
+					Confidential:     &confidential,
+				}
+
+				epics.On("CreateEpic", int64(456), expectedOpts).Return(
+					func() *gitlab.Epic {
+						startDate := gitlab.ISOTime(time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC))
+						dueDate := gitlab.ISOTime(time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC))
+						return &gitlab.Epic{
+							ID:          123,
+							IID:         5,
+							GroupID:     456,
+							Title:       "Test Epic",
+							Description: "Test Description",
+							State:       "opened",
+							WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+							Author: &gitlab.EpicAuthor{
+								ID:       1,
+								Username: "testuser",
+								Name:     "Test User",
+							},
+							StartDate: &startDate,
+							DueDate:   &dueDate,
+							Labels:    gitlab.LabelOptions{"epic", "high-priority"},
+							CreatedAt: &testTime,
+							UpdatedAt: &testTime,
+						}
+					}(),
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			want: &Epic{
+				ID:          123,
+				IID:         5,
+				GroupID:     456,
+				Title:       "Test Epic",
+				Description: "Test Description",
+				State:       "opened",
+				WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+				Author: map[string]any{
+					"id":       int64(1),
+					"username": "testuser",
+					"name":     "Test User",
+				},
+				StartDate: "2024-03-01",
+				DueDate:   "2024-06-30",
+				Labels:    []string{"epic", "high-priority"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful create with minimal options",
+			opts: &CreateEpicOptions{
+				Title: "Minimal Epic",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.CreateEpicOptions{
+					Title:       gitlab.Ptr("Minimal Epic"),
+					Description: gitlab.Ptr(""),
+				}
+
+				epics.On("CreateEpic", int64(456), expectedOpts).Return(
+					&gitlab.Epic{
+						ID:      123,
+						IID:     5,
+						GroupID: 456,
+						Title:   "Minimal Epic",
+						State:   "opened",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+						},
+						Labels: gitlab.LabelOptions{},
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			want: &Epic{
+				ID:      123,
+				IID:     5,
+				GroupID: 456,
+				Title:   "Minimal Epic",
+				State:   "opened",
+				Author: map[string]any{
+					"id":       int64(1),
+					"username": "testuser",
+					"name":     "",
+				},
+				Labels: []string{},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nil options",
+			opts:    nil,
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrCreateOptionsRequired,
+		},
+		{
+			name: "empty title",
+			opts: &CreateEpicOptions{
+				Title: "",
+			},
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrEpicTitleRequired,
+		},
+		{
+			name: "invalid start date",
+			opts: &CreateEpicOptions{
+				Title:     "Test Epic",
+				StartDate: "2024-3-5",
+			},
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrInvalidDateFormat,
+		},
+		{
+			name: "invalid due date",
+			opts: &CreateEpicOptions{
+				Title:   "Test Epic",
+				DueDate: "03/15/2024",
+			},
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrInvalidDateFormat,
+		},
+		{
+			name: "tier required",
+			opts: &CreateEpicOptions{
+				Title: "Test Epic",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.CreateEpicOptions{
+					Title:       gitlab.Ptr("Test Epic"),
+					Description: gitlab.Ptr(""),
+				}
+
+				epics.On("CreateEpic", int64(456), expectedOpts).Return(
+					(*gitlab.Epic)(nil),
+					&gitlab.Response{},
+					errors.New("403 Forbidden"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errType: ErrEpicsTierRequired,
+		},
+		{
+			name: "group not found",
+			opts: &CreateEpicOptions{
+				Title: "Test Epic",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {
+				client.On("Groups").Return(groups)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					(*gitlab.Group)(nil),
+					&gitlab.Response{},
+					errors.New("group not found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "create epic API error",
+			opts: &CreateEpicOptions{
+				Title: "Test Epic",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.CreateEpicOptions{
+					Title:       gitlab.Ptr("Test Epic"),
+					Description: gitlab.Ptr(""),
+				}
+
+				epics.On("CreateEpic", int64(456), expectedOpts).Return(
+					(*gitlab.Epic)(nil),
+					&gitlab.Response{},
+					errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockGroups := &MockGroupsService{}
+			mockEpics := &MockEpicsService{}
+
+			tt.setup(mockClient, mockGroups, mockEpics)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+			got, err := app.CreateGroupEpic("test/group", tt.opts)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errType != nil {
+					assert.ErrorIs(t, err, tt.errType)
+				}
+				assert.Nil(t, got)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, got)
+				assert.Equal(t, tt.want.ID, got.ID)
+				assert.Equal(t, tt.want.IID, got.IID)
+				assert.Equal(t, tt.want.GroupID, got.GroupID)
+				assert.Equal(t, tt.want.Title, got.Title)
+				assert.Equal(t, tt.want.Description, got.Description)
+				assert.Equal(t, tt.want.State, got.State)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockGroups.AssertExpectations(t)
+			mockEpics.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_parseDate(t *testing.T) {
+	app := NewWithClient("token", "https://gitlab.com/", &MockGitLabClient{})
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "valid date YYYY-MM-DD",
+			input:   "2024-03-15",
+			wantErr: false,
+		},
+		{
+			name:    "invalid format MM/DD/YYYY",
+			input:   "03/15/2024",
+			wantErr: true,
+		},
+		{
+			name:    "invalid format YYYY-M-D",
+			input:   "2024-3-5",
+			wantErr: true,
+		},
+		{
+			name:    "completely invalid",
+			input:   "invalid",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := app.parseDate(tt.input)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, ErrInvalidDateFormat)
+				assert.Nil(t, got)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, got)
+				// Verify the date was parsed correctly
+				parsedTime := time.Time(*got)
+				assert.Equal(t, "2024-03-15", parsedTime.Format("2006-01-02"))
+			}
+		})
+	}
+}

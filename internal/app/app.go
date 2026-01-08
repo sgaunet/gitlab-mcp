@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sgaunet/gitlab-mcp/internal/logger"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
@@ -42,6 +43,8 @@ var (
 	ErrMilestoneNotFound              = errors.New("milestone not found")
 	ErrLabelValidationFailed          = errors.New("label validation failed")
 	ErrEpicsTierRequired              = errors.New("epics require GitLab Premium or Ultimate tier")
+	ErrEpicTitleRequired              = errors.New("epic title is required")
+	ErrInvalidDateFormat              = errors.New("date must be in YYYY-MM-DD format")
 )
 
 type App struct {
@@ -196,6 +199,16 @@ type CreateMergeRequestOptions struct {
 type ListEpicsOptions struct {
 	State string
 	Limit int64
+}
+
+// CreateEpicOptions contains options for creating a group epic.
+type CreateEpicOptions struct {
+	Title        string
+	Description  string
+	Labels       []string
+	StartDate    string
+	DueDate      string
+	Confidential bool
 }
 
 // Issue represents a GitLab issue.
@@ -979,6 +992,55 @@ func (a *App) ListGroupEpics(groupPath string, opts *ListEpicsOptions) ([]Epic, 
 	return result, nil
 }
 
+// CreateGroupEpic creates a new epic in a GitLab group.
+func (a *App) CreateGroupEpic(groupPath string, opts *CreateEpicOptions) (*Epic, error) {
+	// Validate options
+	if err := a.validateCreateEpicOptions(opts); err != nil {
+		return nil, err
+	}
+
+	// Parse dates if provided (validate before API calls)
+	startDate, dueDate, err := a.parseEpicDates(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Debug("Creating epic for group", "group_path", groupPath, "title", opts.Title)
+
+	// Resolve group path to group ID
+	groupID, err := a.resolveGroupID(groupPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build GitLab API options
+	createOpts := a.buildCreateEpicOptions(opts, startDate, dueDate)
+
+	// Call GitLab API
+	epic, _, err := a.client.Epics().CreateEpic(groupID, createOpts)
+	if err != nil {
+		return nil, a.handleEpicsAPIError(err, groupID, "failed to create epic")
+	}
+
+	a.logger.Debug("Created epic", "id", epic.ID, "iid", epic.IID, "group_id", groupID)
+
+	result := convertGitLabEpic(epic)
+	a.logger.Info("Successfully created epic",
+		"id", result.ID, "iid", result.IID, "group_id", groupID, "title", result.Title)
+
+	return &result, nil
+}
+
+// parseDate parses a date string in YYYY-MM-DD format to gitlab.ISOTime.
+func (a *App) parseDate(dateStr string) (*gitlab.ISOTime, error) {
+	t, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidDateFormat, err)
+	}
+	isoTime := gitlab.ISOTime(t)
+	return &isoTime, nil
+}
+
 // resolveGroupID resolves a group path to a group ID.
 func (a *App) resolveGroupID(groupPath string) (int64, error) {
 	group, _, err := a.client.Groups().GetGroup(groupPath, nil)
@@ -1028,6 +1090,75 @@ func (a *App) handleEpicsAPIError(err error, groupID int64, context string) erro
 	}
 
 	return fmt.Errorf("%s: %w", context, err)
+}
+
+// validateCreateEpicOptions validates epic creation options.
+func (a *App) validateCreateEpicOptions(opts *CreateEpicOptions) error {
+	if opts == nil {
+		return ErrCreateOptionsRequired
+	}
+	if opts.Title == "" {
+		return ErrEpicTitleRequired
+	}
+	return nil
+}
+
+// parseEpicDates parses start and due dates from options.
+func (a *App) parseEpicDates(opts *CreateEpicOptions) (*gitlab.ISOTime, *gitlab.ISOTime, error) {
+	var startDate, dueDate *gitlab.ISOTime
+	var err error
+
+	if opts.StartDate != "" {
+		startDate, err = a.parseDate(opts.StartDate)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid start_date: %w", err)
+		}
+	}
+
+	if opts.DueDate != "" {
+		dueDate, err = a.parseDate(opts.DueDate)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid due_date: %w", err)
+		}
+	}
+
+	return startDate, dueDate, nil
+}
+
+// buildCreateEpicOptions builds GitLab API options from our options struct.
+func (a *App) buildCreateEpicOptions(
+	opts *CreateEpicOptions,
+	startDate, dueDate *gitlab.ISOTime,
+) *gitlab.CreateEpicOptions {
+	createOpts := &gitlab.CreateEpicOptions{
+		Title:       &opts.Title,
+		Description: &opts.Description,
+	}
+
+	// Set dates with fixed flag
+	if startDate != nil {
+		createOpts.StartDateFixed = startDate
+		fixed := true
+		createOpts.StartDateIsFixed = &fixed
+	}
+	if dueDate != nil {
+		createOpts.DueDateFixed = dueDate
+		fixed := true
+		createOpts.DueDateIsFixed = &fixed
+	}
+
+	// Set labels if provided
+	if len(opts.Labels) > 0 {
+		labels := gitlab.LabelOptions(opts.Labels)
+		createOpts.Labels = &labels
+	}
+
+	// Set confidential if true
+	if opts.Confidential {
+		createOpts.Confidential = &opts.Confidential
+	}
+
+	return createOpts
 }
 
 // addNoteCommon handles common logic for adding notes.

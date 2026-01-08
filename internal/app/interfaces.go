@@ -63,6 +63,7 @@ type MilestonesService interface {
 // EpicsService interface for GitLab Epics operations.
 type EpicsService interface {
 	ListGroupEpics(gid any, opt *gitlab.ListGroupEpicsOptions) ([]*gitlab.Epic, *gitlab.Response, error)
+	CreateEpic(gid any, opt *gitlab.CreateEpicOptions) (*gitlab.Epic, *gitlab.Response, error)
 }
 
 // GitLabClient interface that provides access to all GitLab services.
