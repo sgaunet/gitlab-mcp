@@ -56,6 +56,18 @@ func (m *MockGitLabClient) Milestones() MilestonesService {
 	return result
 }
 
+func (m *MockGitLabClient) Groups() GroupsService {
+	args := m.Called()
+	result, _ := args.Get(0).(GroupsService)
+	return result
+}
+
+func (m *MockGitLabClient) Epics() EpicsService {
+	args := m.Called()
+	result, _ := args.Get(0).(EpicsService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -206,4 +218,34 @@ func (m *MockMilestonesService) ListMilestones(
 	milestones, _ := args.Get(0).([]*gitlab.Milestone)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return milestones, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockGroupsService is a mock implementation of GroupsService.
+type MockGroupsService struct {
+	mock.Mock
+}
+
+func (m *MockGroupsService) GetGroup(
+	gid any,
+	opt *gitlab.GetGroupOptions,
+) (*gitlab.Group, *gitlab.Response, error) {
+	args := m.Called(gid, opt)
+	group, _ := args.Get(0).(*gitlab.Group)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return group, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockEpicsService is a mock implementation of EpicsService.
+type MockEpicsService struct {
+	mock.Mock
+}
+
+func (m *MockEpicsService) ListGroupEpics(
+	gid any,
+	opt *gitlab.ListGroupEpicsOptions,
+) ([]*gitlab.Epic, *gitlab.Response, error) {
+	args := m.Called(gid, opt)
+	epics, _ := args.Get(0).([]*gitlab.Epic)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return epics, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

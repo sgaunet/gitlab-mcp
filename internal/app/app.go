@@ -41,6 +41,7 @@ var (
 	ErrInvalidMilestoneIdentifierType = errors.New("invalid milestone identifier type")
 	ErrMilestoneNotFound              = errors.New("milestone not found")
 	ErrLabelValidationFailed          = errors.New("label validation failed")
+	ErrEpicsTierRequired              = errors.New("epics require GitLab Premium or Ultimate tier")
 )
 
 type App struct {
@@ -191,6 +192,12 @@ type CreateMergeRequestOptions struct {
 	Draft              bool
 }
 
+// ListEpicsOptions contains options for listing group epics.
+type ListEpicsOptions struct {
+	State string
+	Limit int64
+}
+
 // Issue represents a GitLab issue.
 type Issue struct {
 	ID          int64            `json:"id"`
@@ -248,6 +255,23 @@ type MergeRequest struct {
 	Draft        bool             `json:"draft"`
 	CreatedAt    string           `json:"created_at"`
 	UpdatedAt    string           `json:"updated_at"`
+}
+
+// Epic represents a GitLab epic.
+type Epic struct {
+	ID          int64          `json:"id"`
+	IID         int64          `json:"iid"`
+	GroupID     int64          `json:"group_id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	State       string         `json:"state"`
+	WebURL      string         `json:"web_url"`
+	Author      map[string]any `json:"author"`
+	StartDate   string         `json:"start_date"`
+	DueDate     string         `json:"due_date"`
+	Labels      []string       `json:"labels"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -346,6 +370,50 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 		Draft:        mr.Draft,
 		CreatedAt:    mr.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:    mr.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+// convertGitLabEpic converts a GitLab epic to our Epic struct.
+func convertGitLabEpic(epic *gitlab.Epic) Epic {
+	// Convert author to the expected format
+	var author map[string]any
+	if epic.Author != nil {
+		author = map[string]any{
+			"id":       epic.Author.ID,
+			"username": epic.Author.Username,
+			"name":     epic.Author.Name,
+		}
+	}
+
+	// Format dates (handle nil pointers)
+	var startDate, dueDate, createdAt, updatedAt string
+	if epic.StartDate != nil {
+		startDate = epic.StartDate.String()
+	}
+	if epic.DueDate != nil {
+		dueDate = epic.DueDate.String()
+	}
+	if epic.CreatedAt != nil {
+		createdAt = epic.CreatedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if epic.UpdatedAt != nil {
+		updatedAt = epic.UpdatedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return Epic{
+		ID:          epic.ID,
+		IID:         epic.IID,
+		GroupID:     epic.GroupID,
+		Title:       epic.Title,
+		Description: epic.Description,
+		State:       epic.State,
+		WebURL:      epic.WebURL,
+		Author:      author,
+		StartDate:   startDate,
+		DueDate:     dueDate,
+		Labels:      epic.Labels,
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 }
 
@@ -872,6 +940,94 @@ func convertGitLabNote(note *gitlab.Note) *Note {
 	}
 
 	return result
+}
+
+// ListGroupEpics retrieves epics for a given group path.
+func (a *App) ListGroupEpics(groupPath string, opts *ListEpicsOptions) ([]Epic, error) {
+	a.logger.Debug("Listing epics for group", "group_path", groupPath, "options", opts)
+
+	// Resolve group path to group ID
+	groupID, err := a.resolveGroupID(groupPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set defaults for options
+	opts = a.setDefaultEpicOptions(opts)
+
+	// Create GitLab API options
+	listOpts := &gitlab.ListGroupEpicsOptions{
+		State:       &opts.State,
+		ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+	}
+
+	// Call GitLab API
+	epics, _, err := a.client.Epics().ListGroupEpics(groupID, listOpts)
+	if err != nil {
+		return nil, a.handleEpicsAPIError(err, groupID, "failed to list group epics")
+	}
+
+	a.logger.Debug("Retrieved epics", "count", len(epics), "group_id", groupID)
+
+	// Convert GitLab epics to our Epic struct
+	result := make([]Epic, 0, len(epics))
+	for _, epic := range epics {
+		result = append(result, convertGitLabEpic(epic))
+	}
+
+	a.logger.Info("Successfully retrieved group epics", "count", len(result), "group_id", groupID)
+	return result, nil
+}
+
+// resolveGroupID resolves a group path to a group ID.
+func (a *App) resolveGroupID(groupPath string) (int64, error) {
+	group, _, err := a.client.Groups().GetGroup(groupPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get group", "error", err, "group_path", groupPath)
+
+		// Check if it's a 403 Forbidden (Premium/Ultimate tier requirement)
+		if strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "Forbidden") {
+			return 0, fmt.Errorf(
+				"%w: group access may require Premium/Ultimate tier or epics feature is not enabled",
+				ErrEpicsTierRequired,
+			)
+		}
+
+		return 0, fmt.Errorf("failed to get group: %w", err)
+	}
+	return group.ID, nil
+}
+
+// setDefaultEpicOptions sets default values for epic listing options.
+func (a *App) setDefaultEpicOptions(opts *ListEpicsOptions) *ListEpicsOptions {
+	if opts == nil {
+		return &ListEpicsOptions{
+			State: "opened",
+			Limit: maxIssuesPerPage,
+		}
+	}
+	if opts.State == "" {
+		opts.State = "opened"
+	}
+	if opts.Limit == 0 {
+		opts.Limit = maxIssuesPerPage
+	}
+	if opts.Limit > maxIssuesPerPage {
+		opts.Limit = maxIssuesPerPage
+	}
+	return opts
+}
+
+// handleEpicsAPIError handles errors from GitLab epics API calls.
+func (a *App) handleEpicsAPIError(err error, groupID int64, context string) error {
+	a.logger.Error(context, "error", err, "group_id", groupID)
+
+	// Check if it's a 403 Forbidden (Premium/Ultimate tier requirement)
+	if strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "Forbidden") {
+		return fmt.Errorf("%w: epics are only available in GitLab Premium or Ultimate tier", ErrEpicsTierRequired)
+	}
+
+	return fmt.Errorf("%s: %w", context, err)
 }
 
 // addNoteCommon handles common logic for adding notes.

@@ -456,6 +456,89 @@ func extractListLabelsOptions(args map[string]any) *app.ListLabelsOptions {
 	return opts
 }
 
+// setupListEpicsTool creates and registers the list_epics tool.
+func setupListEpicsTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	listEpicsTool := mcp.NewTool("list_epics",
+		mcp.WithDescription("List epics for a GitLab group by group path. "+
+			"Note: Epics require GitLab Premium or Ultimate tier. "+
+			"Free/Starter tier instances will return a helpful error message."),
+		mcp.WithString("group_path",
+			mcp.Required(),
+			mcp.Description("GitLab group path (e.g., 'myorg' or 'parent/subgroup'). "+
+				"Groups contain multiple projects and use epics to organize work across projects."),
+		),
+		mcp.WithString("state",
+			mcp.Description("Filter by epic state: opened, closed, or all (default: opened)"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of epics to return (default: 100, max: 100)"),
+		),
+	)
+
+	s.AddTool(listEpicsTool, handleListEpicsRequest(appInstance, debugLogger))
+}
+
+// handleListEpicsRequest handles the list_epics tool request.
+func handleListEpicsRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received list_epics tool request", "args", args)
+
+		// Extract group_path
+		groupPath, ok := args["group_path"].(string)
+		if !ok || groupPath == "" {
+			debugLogger.Error("group_path is not a valid string", "value", args["group_path"])
+			return mcp.NewToolResultError("group_path must be a non-empty string"), nil
+		}
+
+		// Extract optional parameters
+		opts := &app.ListEpicsOptions{
+			State: "opened",
+			Limit: defaultLimit,
+		}
+
+		if state, ok := args["state"].(string); ok && state != "" {
+			opts.State = state
+		}
+		if limitFloat, ok := args["limit"].(float64); ok {
+			opts.Limit = int64(limitFloat)
+		}
+
+		debugLogger.Debug("Processing list_epics request", "group_path", groupPath, "opts", opts)
+
+		// Call the app method
+		epics, err := appInstance.ListGroupEpics(groupPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to list group epics", "error", err, "group_path", groupPath)
+
+			if errors.Is(err, app.ErrEpicsTierRequired) {
+				return mcp.NewToolResultError(fmt.Sprintf(
+					"Failed to list epics: %v\n\n"+
+						"Epics are a GitLab Premium/Ultimate feature. If you're on a Free tier, "+
+						"consider using issues for work tracking instead. "+
+						"See: https://docs.gitlab.com/ee/user/group/epics/",
+					err,
+				)), nil
+			}
+
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to list group epics: %v", err)), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(epics)
+		if err != nil {
+			debugLogger.Error("Failed to marshal epics to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format epics response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved group epics", "count", len(epics), "group_path", groupPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -993,7 +1076,8 @@ DESCRIPTION:
     • update_project_description - Update the project description
     • get_project_topics       - Get the topics/tags of a project
     • update_project_topics    - Update the project topics (replaces all)
-    
+    • list_epics               - List epics for a GitLab group (Premium/Ultimate)
+
     The server communicates via JSON-RPC 2.0 over stdin/stdout and is designed
     to be used with Claude Code's MCP architecture.
 
@@ -1070,6 +1154,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)
 	setupGetProjectTopicsTool(s, appInstance, debugLogger)
 	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
+	setupListEpicsTool(s, appInstance, debugLogger)
 }
 
 func main() {
