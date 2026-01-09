@@ -19,11 +19,12 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 - **Update Issues**: Update existing issues (title, description, state, labels, assignees)
 - **List Labels**: List project labels with optional filtering and counts
 - **Add Issue Notes**: Add comments/notes to existing issues
-- **Create Merge Requests**: Create new merge requests with source/target branches, title, description, assignees, reviewers, and labels
 - **Get Project Description**: Retrieve the current description of a GitLab project
 - **Update Project Description**: Update the description of a GitLab project
 - **Get Project Topics**: Retrieve the current topics/tags of a GitLab project
 - **Update Project Topics**: Update the topics/tags of a GitLab project (replaces all existing topics)
+- **List Epics**: List epics for a GitLab group (Premium/Ultimate tier)
+- **Create Epics**: Create new epics in a GitLab group (Premium/Ultimate tier)
 - Direct project path access - no need to resolve project IDs
 - Compatible with Claude Code's MCP architecture
 
@@ -236,7 +237,7 @@ Lists labels for a GitLab project with optional filtering.
 
 **Parameters:**
 - `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
-- `with_counts` (boolean, optional): Include issue and merge request counts (default: false)
+- `with_counts` (boolean, optional): Include issue counts (default: false)
 - `include_ancestor_groups` (boolean, optional): Include labels from ancestor groups (default: false)
 - `search` (string, optional): Filter labels by search keyword
 - `limit` (number, optional): Maximum number of labels to return (default: 100, max: 100)
@@ -263,7 +264,6 @@ Returns a JSON array of label objects, each containing:
 - `description`: Label description
 - `open_issues_count`: Number of open issues (if with_counts=true)
 - `closed_issues_count`: Number of closed issues (if with_counts=true)
-- `open_merge_requests_count`: Number of open merge requests (if with_counts=true)
 
 ### add_issue_note
 
@@ -292,55 +292,6 @@ Returns a JSON object of the created note containing:
 - `updated_at`: Last update timestamp
 - `system`: Boolean indicating if this is a system-generated note
 - `noteable`: Object containing information about the issue this note belongs to
-
-### create_merge_request
-
-Creates a new merge request for a GitLab project.
-
-**Parameters:**
-- `project_path` (string, required): GitLab project path including all namespaces (e.g., 'namespace/project-name' or 'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL
-- `source_branch` (string, required): Source branch name
-- `target_branch` (string, required): Target branch name
-- `title` (string, required): MR title
-- `description` (string, optional): MR description
-- `assignee_ids` (array, optional): Array of assignee user IDs
-- `reviewer_ids` (array, optional): Array of reviewer user IDs
-- `labels` (array, optional): Array of labels
-- `milestone_id` (number, optional): Milestone ID
-- `remove_source_branch` (boolean, optional): Auto-remove source branch after merge (default: true)
-- `draft` (boolean, optional): Create as draft MR (default: false)
-
-**Examples:**
-```
-Create a merge request from feature-branch to main for project namespace/project_name
-```
-
-```
-Create a merge request with assignees and labels from feature-branch to main for project namespace/project_name
-```
-
-```
-Create a draft merge request with description "New feature implementation" from feature-branch to develop for project namespace/project_name
-```
-
-**Response Format:**
-Returns a JSON object of the created merge request containing:
-- `id`: Merge request ID
-- `iid`: Internal merge request ID
-- `title`: MR title
-- `description`: MR description
-- `state`: MR state (opened, closed, merged)
-- `source_branch`: Source branch name
-- `target_branch`: Target branch name
-- `author`: Author object with id, username, and name
-- `assignees`: Array of assignee objects
-- `reviewers`: Array of reviewer objects
-- `labels`: Array of label names
-- `milestone`: Milestone object (if assigned)
-- `web_url`: Web URL to the merge request
-- `draft`: Boolean indicating if this is a draft MR
-- `created_at`: Creation timestamp
-- `updated_at`: Last update timestamp
 
 ### get_project_description
 

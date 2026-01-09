@@ -16,35 +16,24 @@ import (
 
 // Constants for default values.
 const (
-	defaultGitLabURI     = "https://gitlab.com/"
-	defaultStateOpened   = "opened"
-	maxIssuesPerPage     = 100
-	maxLabelsPerPage     = 100
-	maxMilestonesPerPage = 100
+	defaultGitLabURI   = "https://gitlab.com/"
+	defaultStateOpened = "opened"
+	maxIssuesPerPage   = 100
+	maxLabelsPerPage   = 100
 )
 
 // Error variables for static errors.
 var (
-	ErrGitLabTokenRequired            = errors.New("GITLAB_TOKEN environment variable is required")
-	ErrCreateOptionsRequired          = errors.New("create issue options are required")
-	ErrIssueTitleRequired             = errors.New("issue title is required")
-	ErrInvalidIssueIID                = errors.New("issue IID must be a positive integer")
-	ErrInvalidMergeRequestIID         = errors.New("merge request IID must be a positive integer")
-	ErrUpdateOptionsRequired          = errors.New("update issue options are required")
-	ErrNoteBodyRequired               = errors.New("note body is required")
-	ErrMRNoteBodyRequired             = errors.New("merge request note body is required")
-	ErrCreateMROptionsRequired        = errors.New("create merge request options are required")
-	ErrMRTitleRequired                = errors.New("merge request title is required")
-	ErrMRSourceBranchRequired         = errors.New("merge request source branch is required")
-	ErrMRTargetBranchRequired         = errors.New("merge request target branch is required")
-	ErrInvalidUserIdentifierType      = errors.New("invalid user identifier type")
-	ErrUserNotFound                   = errors.New("user not found")
-	ErrInvalidMilestoneIdentifierType = errors.New("invalid milestone identifier type")
-	ErrMilestoneNotFound              = errors.New("milestone not found")
-	ErrLabelValidationFailed          = errors.New("label validation failed")
-	ErrEpicsTierRequired              = errors.New("epics require GitLab Premium or Ultimate tier")
-	ErrEpicTitleRequired              = errors.New("epic title is required")
-	ErrInvalidDateFormat              = errors.New("date must be in YYYY-MM-DD format")
+	ErrGitLabTokenRequired   = errors.New("GITLAB_TOKEN environment variable is required")
+	ErrCreateOptionsRequired = errors.New("create issue options are required")
+	ErrIssueTitleRequired    = errors.New("issue title is required")
+	ErrInvalidIssueIID       = errors.New("issue IID must be a positive integer")
+	ErrUpdateOptionsRequired = errors.New("update issue options are required")
+	ErrNoteBodyRequired      = errors.New("note body is required")
+	ErrLabelValidationFailed = errors.New("label validation failed")
+	ErrEpicsTierRequired     = errors.New("epics require GitLab Premium or Ultimate tier")
+	ErrEpicTitleRequired     = errors.New("epic title is required")
+	ErrInvalidDateFormat     = errors.New("date must be in YYYY-MM-DD format")
 )
 
 type App struct {
@@ -176,25 +165,6 @@ type AddIssueNoteOptions struct {
 	Body string
 }
 
-// AddMergeRequestNoteOptions contains options for adding a note to a merge request.
-type AddMergeRequestNoteOptions struct {
-	Body string
-}
-
-// CreateMergeRequestOptions contains options for creating a merge request.
-type CreateMergeRequestOptions struct {
-	SourceBranch       string
-	TargetBranch       string
-	Title              string
-	Description        string
-	Assignees          []any // Can be usernames (string) or IDs (int)
-	Reviewers          []any // Can be usernames (string) or IDs (int)
-	Labels             []string
-	Milestone          any // Can be title (string) or ID (int)
-	RemoveSourceBranch bool
-	Draft              bool
-}
-
 // ListEpicsOptions contains options for listing group epics.
 type ListEpicsOptions struct {
 	State string
@@ -248,26 +218,6 @@ type Note struct {
 	UpdatedAt string         `json:"updated_at"`
 	System    bool           `json:"system"`
 	Noteable  map[string]any `json:"noteable"`
-}
-
-// MergeRequest represents a GitLab merge request.
-type MergeRequest struct {
-	ID           int64            `json:"id"`
-	IID          int64            `json:"iid"`
-	Title        string           `json:"title"`
-	Description  string           `json:"description"`
-	State        string           `json:"state"`
-	SourceBranch string           `json:"source_branch"`
-	TargetBranch string           `json:"target_branch"`
-	Author       map[string]any   `json:"author"`
-	Assignees    []map[string]any `json:"assignees"`
-	Reviewers    []map[string]any `json:"reviewers"`
-	Labels       []string         `json:"labels"`
-	Milestone    map[string]any   `json:"milestone"`
-	WebURL       string           `json:"web_url"`
-	Draft        bool             `json:"draft"`
-	CreatedAt    string           `json:"created_at"`
-	UpdatedAt    string           `json:"updated_at"`
 }
 
 // Epic represents a GitLab epic.
@@ -325,66 +275,6 @@ func convertGitLabIssue(issue *gitlab.Issue) Issue {
 	}
 }
 
-// convertGitLabMergeRequest converts a GitLab merge request to our MergeRequest struct.
-func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
-	// Convert assignees to the expected format
-	assignees := make([]map[string]any, 0, len(mr.Assignees))
-	for _, assignee := range mr.Assignees {
-		assignees = append(assignees, map[string]any{
-			"id":       assignee.ID,
-			"username": assignee.Username,
-			"name":     assignee.Name,
-		})
-	}
-
-	// Convert reviewers to the expected format
-	reviewers := make([]map[string]any, 0, len(mr.Reviewers))
-	for _, reviewer := range mr.Reviewers {
-		reviewers = append(reviewers, map[string]any{
-			"id":       reviewer.ID,
-			"username": reviewer.Username,
-			"name":     reviewer.Name,
-		})
-	}
-
-	// Convert author to the expected format
-	var author map[string]any
-	if mr.Author != nil {
-		author = map[string]any{
-			"id":       mr.Author.ID,
-			"username": mr.Author.Username,
-			"name":     mr.Author.Name,
-		}
-	}
-
-	// Convert milestone to the expected format
-	var milestone map[string]any
-	if mr.Milestone != nil {
-		milestone = map[string]any{
-			"id":    mr.Milestone.ID,
-			"title": mr.Milestone.Title,
-		}
-	}
-
-	return MergeRequest{
-		ID:           mr.ID,
-		IID:          mr.IID,
-		Title:        mr.Title,
-		Description:  mr.Description,
-		State:        mr.State,
-		SourceBranch: mr.SourceBranch,
-		TargetBranch: mr.TargetBranch,
-		Author:       author,
-		Assignees:    assignees,
-		Reviewers:    reviewers,
-		Labels:       mr.Labels,
-		Milestone:    milestone,
-		WebURL:       mr.WebURL,
-		Draft:        mr.Draft,
-		CreatedAt:    mr.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:    mr.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-	}
-}
 
 // convertGitLabEpic converts a GitLab epic to our Epic struct.
 func convertGitLabEpic(epic *gitlab.Epic) Epic {
@@ -716,78 +606,6 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 	return a.addNoteCommon(projectPath, issueIID, opts.Body, "issue", createNote)
 }
 
-// AddMergeRequestNote adds a note/comment to an existing merge request.
-func (a *App) AddMergeRequestNote(
-	projectPath string, mergeRequestIID int64, opts *AddMergeRequestNoteOptions,
-) (*Note, error) {
-	// Validate required parameters
-	if mergeRequestIID <= 0 {
-		return nil, ErrInvalidMergeRequestIID
-	}
-	if opts == nil || opts.Body == "" {
-		return nil, ErrMRNoteBodyRequired
-	}
-
-	createNote := func(projectID int64, iid int64, body string) (*gitlab.Note, error) {
-		createOpts := &gitlab.CreateMergeRequestNoteOptions{Body: &body}
-		note, _, err := a.client.Notes().CreateMergeRequestNote(projectID, iid, createOpts)
-		if err != nil {
-			return nil, fmt.Errorf("gitlab API call failed: %w", err)
-		}
-		return note, nil
-	}
-	return a.addNoteCommon(projectPath, mergeRequestIID, opts.Body, "merge request", createNote)
-}
-
-// CreateProjectMergeRequest creates a new merge request for a given project path.
-func (a *App) CreateProjectMergeRequest(projectPath string, opts *CreateMergeRequestOptions) (*MergeRequest, error) {
-	if err := a.validateMergeRequestOptions(opts); err != nil {
-		return nil, err
-	}
-
-	a.logger.Debug("Creating merge request for project",
-		"project_path", projectPath,
-		"title", opts.Title,
-		"source_branch", opts.SourceBranch,
-		"target_branch", opts.TargetBranch)
-
-	// Get project by path
-	project, _, err := a.client.Projects().GetProject(projectPath, nil)
-	if err != nil {
-		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
-	}
-	projectID := project.ID
-
-	// Create GitLab API options
-	createOpts, err := a.buildMergeRequestOptions(projectID, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Call GitLab API
-	mr, _, err := a.client.MergeRequests().CreateMergeRequest(projectID, createOpts)
-	if err != nil {
-		a.logger.Error("Failed to create merge request",
-			"error", err,
-			"project_id", projectID,
-			"title", opts.Title)
-		return nil, fmt.Errorf("failed to create merge request: %w", err)
-	}
-
-	a.logger.Debug("Created merge request",
-		"id", mr.ID,
-		"iid", mr.IID,
-		"project_id", projectID)
-
-	result := convertGitLabMergeRequest(mr)
-	a.logger.Info("Successfully created merge request",
-		"id", result.ID,
-		"iid", result.IID,
-		"project_id", projectID,
-		"title", result.Title)
-	return &result, nil
-}
 
 // ProjectInfo represents basic project information.
 type ProjectInfo struct {
@@ -1195,187 +1013,6 @@ func (a *App) addNoteCommon(
 	a.logger.Info("Successfully added note", "type", noteType, "note_id", result.ID,
 		"project_id", projectID, "iid", iid)
 	return result, nil
-}
-
-// validateMergeRequestOptions validates the required merge request options.
-func (a *App) validateMergeRequestOptions(opts *CreateMergeRequestOptions) error {
-	if opts == nil {
-		return ErrCreateMROptionsRequired
-	}
-	if opts.Title == "" {
-		return ErrMRTitleRequired
-	}
-	if opts.SourceBranch == "" {
-		return ErrMRSourceBranchRequired
-	}
-	if opts.TargetBranch == "" {
-		return ErrMRTargetBranchRequired
-	}
-	return nil
-}
-
-// buildMergeRequestOptions builds the GitLab API options for creating a merge request.
-func (a *App) buildMergeRequestOptions(projectID int64, opts *CreateMergeRequestOptions) (
-	*gitlab.CreateMergeRequestOptions, error,
-) {
-	createOpts := &gitlab.CreateMergeRequestOptions{
-		Title:        &opts.Title,
-		SourceBranch: &opts.SourceBranch,
-		TargetBranch: &opts.TargetBranch,
-	}
-
-	// Add optional description
-	if opts.Description != "" {
-		createOpts.Description = &opts.Description
-	}
-
-	// Resolve assignees (usernames to IDs)
-	if len(opts.Assignees) > 0 {
-		assigneeIDs, err := a.resolveUserIdentifiers(opts.Assignees)
-		if err != nil {
-			a.logger.Error("Failed to resolve assignees", "error", err)
-			return nil, fmt.Errorf("failed to resolve assignees: %w", err)
-		}
-		createOpts.AssigneeIDs = &assigneeIDs
-	}
-
-	// Resolve reviewers (usernames to IDs)
-	if len(opts.Reviewers) > 0 {
-		reviewerIDs, err := a.resolveUserIdentifiers(opts.Reviewers)
-		if err != nil {
-			a.logger.Error("Failed to resolve reviewers", "error", err)
-			return nil, fmt.Errorf("failed to resolve reviewers: %w", err)
-		}
-		createOpts.ReviewerIDs = &reviewerIDs
-	}
-
-	// Add labels if provided
-	if len(opts.Labels) > 0 {
-		labels := gitlab.LabelOptions(opts.Labels)
-		createOpts.Labels = &labels
-	}
-
-	// Resolve milestone (title to ID)
-	if opts.Milestone != nil {
-		milestoneID, err := a.resolveMilestoneIdentifier(projectID, opts.Milestone)
-		if err != nil {
-			a.logger.Error("Failed to resolve milestone", "error", err)
-			return nil, fmt.Errorf("failed to resolve milestone: %w", err)
-		}
-		if milestoneID > 0 {
-			createOpts.MilestoneID = &milestoneID
-		}
-	}
-
-	// Set remove source branch option (default to true in issue spec)
-	createOpts.RemoveSourceBranch = &opts.RemoveSourceBranch
-
-	// Note: Draft is handled by GitLab automatically based on the title prefix "Draft:" or "WIP:"
-	// The Draft field in our struct is for output only
-
-	return createOpts, nil
-}
-
-// resolveUserIdentifiers converts username strings or IDs to user IDs.
-func (a *App) resolveUserIdentifiers(identifiers []any) ([]int64, error) {
-	if len(identifiers) == 0 {
-		return nil, nil
-	}
-
-	userIDs := make([]int64, 0, len(identifiers))
-
-	for _, identifier := range identifiers {
-		switch v := identifier.(type) {
-		case float64:
-			// It's already an ID
-			userIDs = append(userIDs, int64(v))
-		case int:
-			// It's already an ID
-			userIDs = append(userIDs, int64(v))
-		case string:
-			// It's a username, need to resolve
-			userID, err := a.findUserByUsername(v)
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve user '%s': %w", v, err)
-			}
-			userIDs = append(userIDs, userID)
-		default:
-			return nil, fmt.Errorf("%w: %T", ErrInvalidUserIdentifierType, identifier)
-		}
-	}
-
-	return userIDs, nil
-}
-
-// findUserByUsername searches for a user by username and returns their ID.
-func (a *App) findUserByUsername(username string) (int64, error) {
-	a.logger.Debug("Searching for user by username", "username", username)
-
-	// Search for the user
-	listOpts := &gitlab.ListUsersOptions{
-		Username:    &username,
-		ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
-	}
-
-	users, _, err := a.client.Users().ListUsers(listOpts)
-	if err != nil {
-		a.logger.Error("Failed to search for user", "error", err, "username", username)
-		return 0, fmt.Errorf("failed to search for user: %w", err)
-	}
-
-	if len(users) == 0 {
-		a.logger.Error("User not found", "username", username)
-		return 0, fmt.Errorf("%w: %s", ErrUserNotFound, username)
-	}
-
-	a.logger.Debug("Found user", "username", username, "id", users[0].ID)
-	return users[0].ID, nil
-}
-
-// resolveMilestoneIdentifier converts milestone title or ID to milestone ID.
-func (a *App) resolveMilestoneIdentifier(projectID int64, identifier any) (int64, error) {
-	switch v := identifier.(type) {
-	case float64:
-		// It's already an ID
-		return int64(v), nil
-	case int:
-		// It's already an ID
-		return int64(v), nil
-	case string:
-		// It's a title, need to resolve
-		return a.findMilestoneByTitle(projectID, v)
-	default:
-		return 0, fmt.Errorf("%w: %T", ErrInvalidMilestoneIdentifierType, identifier)
-	}
-}
-
-// findMilestoneByTitle searches for a milestone by title and returns its ID.
-func (a *App) findMilestoneByTitle(projectID int64, title string) (int64, error) {
-	a.logger.Debug("Searching for milestone by title", "project_id", projectID, "title", title)
-
-	// Search for active milestones
-	state := "active"
-	listOpts := &gitlab.ListMilestonesOptions{
-		State:       &state,
-		ListOptions: gitlab.ListOptions{PerPage: maxMilestonesPerPage, Page: 1},
-	}
-
-	milestones, _, err := a.client.Milestones().ListMilestones(projectID, listOpts)
-	if err != nil {
-		a.logger.Error("Failed to list milestones", "error", err, "project_id", projectID)
-		return 0, fmt.Errorf("failed to list milestones: %w", err)
-	}
-
-	// Look for exact match
-	for _, milestone := range milestones {
-		if milestone.Title == title {
-			a.logger.Debug("Found milestone", "title", title, "id", milestone.ID)
-			return milestone.ID, nil
-		}
-	}
-
-	a.logger.Error("Milestone not found", "title", title)
-	return 0, fmt.Errorf("%w: %s", ErrMilestoneNotFound, title)
 }
 
 // validateLabels checks if the requested labels exist in the project.

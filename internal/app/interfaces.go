@@ -40,24 +40,6 @@ type NotesService interface {
 		issue int64,
 		opt *gitlab.CreateIssueNoteOptions,
 	) (*gitlab.Note, *gitlab.Response, error)
-	CreateMergeRequestNote(
-		pid any,
-		mergeRequest int64,
-		opt *gitlab.CreateMergeRequestNoteOptions,
-	) (*gitlab.Note, *gitlab.Response, error)
-}
-
-// MergeRequestsService interface for GitLab MergeRequests operations.
-type MergeRequestsService interface {
-	CreateMergeRequest(
-		pid any,
-		opt *gitlab.CreateMergeRequestOptions,
-	) (*gitlab.MergeRequest, *gitlab.Response, error)
-}
-
-// MilestonesService interface for GitLab Milestones operations.
-type MilestonesService interface {
-	ListMilestones(pid any, opt *gitlab.ListMilestonesOptions) ([]*gitlab.Milestone, *gitlab.Response, error)
 }
 
 // EpicsService interface for GitLab Epics operations.
@@ -73,8 +55,6 @@ type GitLabClient interface {
 	Labels() LabelsService
 	Users() UsersService
 	Notes() NotesService
-	MergeRequests() MergeRequestsService
-	Milestones() MilestonesService
 	Groups() GroupsService
 	Epics() EpicsService
 }
