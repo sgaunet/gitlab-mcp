@@ -56,6 +56,12 @@ func (m *MockGitLabClient) Epics() EpicsService {
 	return result
 }
 
+func (m *MockGitLabClient) EpicIssues() EpicIssuesService {
+	args := m.Called()
+	result, _ := args.Get(0).(EpicIssuesService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -115,6 +121,16 @@ func (m *MockIssuesService) UpdateIssue(
 	updatedIssue, _ := args.Get(0).(*gitlab.Issue)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return updatedIssue, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockIssuesService) GetIssue(
+	pid any,
+	issue int,
+) (*gitlab.Issue, *gitlab.Response, error) {
+	args := m.Called(pid, issue)
+	iss, _ := args.Get(0).(*gitlab.Issue)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return iss, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
 // MockLabelsService is a mock implementation of LabelsService.
@@ -209,4 +225,23 @@ func (m *MockEpicsService) CreateEpic(
 	epic, _ := args.Get(0).(*gitlab.Epic)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return epic, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockEpicIssuesService is a mock implementation of EpicIssuesService.
+type MockEpicIssuesService struct {
+	mock.Mock
+}
+
+func (m *MockEpicIssuesService) AssignEpicIssue(
+	gid any,
+	epic, issue int64,
+) (*gitlab.EpicIssueAssignment, *gitlab.Response, error) {
+	args := m.Called(gid, epic, issue)
+	if args.Get(0) == nil {
+		response, _ := args.Get(1).(*gitlab.Response)
+		return nil, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+	}
+	epicIssue, _ := args.Get(0).(*gitlab.EpicIssueAssignment)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return epicIssue, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

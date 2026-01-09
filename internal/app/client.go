@@ -53,6 +53,11 @@ func (g *GitLabClientWrapper) Epics() EpicsService {
 	return &EpicsServiceWrapper{service: g.client.Epics}
 }
 
+// EpicIssues returns the EpicIssues service.
+func (g *GitLabClientWrapper) EpicIssues() EpicIssuesService {
+	return &EpicIssuesServiceWrapper{service: g.client.EpicIssues}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -117,6 +122,17 @@ func (i *IssuesServiceWrapper) UpdateIssue(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return updatedIssue, resp, nil
+}
+
+func (i *IssuesServiceWrapper) GetIssue(
+	pid any,
+	issue int,
+) (*gitlab.Issue, *gitlab.Response, error) {
+	iss, resp, err := i.service.GetIssue(pid, int64(issue), nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return iss, resp, nil
 }
 
 // LabelsServiceWrapper wraps the real Labels service.
@@ -214,4 +230,20 @@ func (e *EpicsServiceWrapper) CreateEpic(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return epic, resp, nil
+}
+
+// EpicIssuesServiceWrapper wraps the real EpicIssues service.
+type EpicIssuesServiceWrapper struct {
+	service gitlab.EpicIssuesServiceInterface
+}
+
+func (e *EpicIssuesServiceWrapper) AssignEpicIssue(
+	gid any,
+	epic, issue int64,
+) (*gitlab.EpicIssueAssignment, *gitlab.Response, error) {
+	epicIssue, resp, err := e.service.AssignEpicIssue(gid, epic, issue)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return epicIssue, resp, nil
 }

@@ -34,6 +34,10 @@ var (
 	ErrEpicsTierRequired     = errors.New("epics require GitLab Premium or Ultimate tier")
 	ErrEpicTitleRequired     = errors.New("epic title is required")
 	ErrInvalidDateFormat     = errors.New("date must be in YYYY-MM-DD format")
+	ErrEpicIIDRequired       = errors.New("epic IID is required")
+	ErrProjectPathRequired   = errors.New("project path is required")
+	ErrGroupPathRequired     = errors.New("group path is required")
+	ErrIssueNotFound         = errors.New("issue not found")
 )
 
 type App struct {
@@ -181,6 +185,14 @@ type CreateEpicOptions struct {
 	Confidential bool
 }
 
+// AddIssueToEpicOptions contains options for attaching an issue to an epic.
+type AddIssueToEpicOptions struct {
+	GroupPath   string
+	EpicIID     int
+	ProjectPath string
+	IssueIID    int64
+}
+
 // Issue represents a GitLab issue.
 type Issue struct {
 	ID          int64            `json:"id"`
@@ -235,6 +247,20 @@ type Epic struct {
 	Labels      []string       `json:"labels"`
 	CreatedAt   string         `json:"created_at"`
 	UpdatedAt   string         `json:"updated_at"`
+}
+
+// EpicIssueAssignment represents an issue associated with an epic.
+type EpicIssueAssignment struct {
+	ID          int64          `json:"id"`
+	IID         int64          `json:"iid"`
+	EpicID      int64          `json:"epic_id"`
+	EpicIID     int64          `json:"epic_iid"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	State       string         `json:"state"`
+	WebURL      string         `json:"web_url"`
+	Labels      []string       `json:"labels"`
+	Author      map[string]any `json:"author"`
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -317,6 +343,35 @@ func convertGitLabEpic(epic *gitlab.Epic) Epic {
 		Labels:      epic.Labels,
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
+	}
+}
+
+// convertGitLabEpicIssueAssignment converts a GitLab EpicIssueAssignment to our EpicIssueAssignment struct.
+func convertGitLabEpicIssueAssignment(epicIssue *gitlab.EpicIssueAssignment) EpicIssueAssignment {
+	// The EpicIssueAssignment type in the GitLab client is an embedded Issue
+	// with additional epic-related fields
+
+	// Convert author to the expected format
+	var author map[string]any
+	if epicIssue.Issue.Author != nil {
+		author = map[string]any{
+			"id":       epicIssue.Issue.Author.ID,
+			"username": epicIssue.Issue.Author.Username,
+			"name":     epicIssue.Issue.Author.Name,
+		}
+	}
+
+	return EpicIssueAssignment{
+		ID:          epicIssue.Issue.ID,
+		IID:         epicIssue.Issue.IID,
+		EpicID:      epicIssue.Epic.ID,
+		EpicIID:     epicIssue.Epic.IID,
+		Title:       epicIssue.Issue.Title,
+		Description: epicIssue.Issue.Description,
+		State:       epicIssue.Issue.State,
+		WebURL:      epicIssue.Issue.WebURL,
+		Labels:      epicIssue.Issue.Labels,
+		Author:      author,
 	}
 }
 
@@ -849,6 +904,54 @@ func (a *App) CreateGroupEpic(groupPath string, opts *CreateEpicOptions) (*Epic,
 	return &result, nil
 }
 
+// AddIssueToEpic attaches an issue to an epic.
+func (a *App) AddIssueToEpic(opts *AddIssueToEpicOptions) (*EpicIssueAssignment, error) {
+	// Validate options
+	if err := a.validateAddIssueToEpicOptions(opts); err != nil {
+		return nil, err
+	}
+
+	a.logger.Debug("Adding issue to epic",
+		"group_path", opts.GroupPath, "epic_iid", opts.EpicIID,
+		"project_path", opts.ProjectPath, "issue_iid", opts.IssueIID)
+
+	// Resolve group path to group ID
+	groupID, err := a.resolveGroupID(opts.GroupPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get project to ensure it exists
+	project, _, err := a.client.Projects().GetProject(opts.ProjectPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project %s: %w", opts.ProjectPath, err)
+	}
+
+	// Get issue to obtain global issue ID
+	issue, _, err := a.client.Issues().GetIssue(project.ID, int(opts.IssueIID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue %d: %w", opts.IssueIID, err)
+	}
+
+	if issue.ID == 0 {
+		return nil, ErrIssueNotFound
+	}
+
+	// Assign issue to epic
+	epicIssue, _, err := a.client.EpicIssues().AssignEpicIssue(groupID, int64(opts.EpicIID), issue.ID)
+	if err != nil {
+		return nil, a.handleEpicsAPIError(err, groupID, "failed to add issue to epic")
+	}
+
+	a.logger.Debug("Added issue to epic", "epic_iid", opts.EpicIID, "issue_id", issue.ID)
+
+	result := convertGitLabEpicIssueAssignment(epicIssue)
+	a.logger.Info("Successfully added issue to epic",
+		"issue_id", result.ID, "issue_iid", result.IID, "epic_iid", result.EpicIID)
+
+	return &result, nil
+}
+
 // parseDate parses a date string in YYYY-MM-DD format to gitlab.ISOTime.
 func (a *App) parseDate(dateStr string) (*gitlab.ISOTime, error) {
 	t, err := time.Parse("2006-01-02", dateStr)
@@ -917,6 +1020,26 @@ func (a *App) validateCreateEpicOptions(opts *CreateEpicOptions) error {
 	}
 	if opts.Title == "" {
 		return ErrEpicTitleRequired
+	}
+	return nil
+}
+
+// validateAddIssueToEpicOptions validates the options for adding an issue to an epic.
+func (a *App) validateAddIssueToEpicOptions(opts *AddIssueToEpicOptions) error {
+	if opts == nil {
+		return ErrCreateOptionsRequired
+	}
+	if opts.GroupPath == "" {
+		return ErrGroupPathRequired
+	}
+	if opts.EpicIID <= 0 {
+		return ErrEpicIIDRequired
+	}
+	if opts.ProjectPath == "" {
+		return ErrProjectPathRequired
+	}
+	if opts.IssueIID <= 0 {
+		return ErrInvalidIssueIID
 	}
 	return nil
 }
