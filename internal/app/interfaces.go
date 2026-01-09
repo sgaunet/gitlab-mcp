@@ -20,6 +20,7 @@ type IssuesService interface {
 	ListProjectIssues(pid any, opt *gitlab.ListProjectIssuesOptions) ([]*gitlab.Issue, *gitlab.Response, error)
 	CreateIssue(pid any, opt *gitlab.CreateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
 	UpdateIssue(pid any, issue int64, opt *gitlab.UpdateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
+	GetIssue(pid any, issue int) (*gitlab.Issue, *gitlab.Response, error)
 }
 
 // LabelsService interface for GitLab Labels operations.
@@ -48,6 +49,11 @@ type EpicsService interface {
 	CreateEpic(gid any, opt *gitlab.CreateEpicOptions) (*gitlab.Epic, *gitlab.Response, error)
 }
 
+// EpicIssuesService interface for GitLab Epic Issues operations.
+type EpicIssuesService interface {
+	AssignEpicIssue(gid any, epic, issue int64) (*gitlab.EpicIssueAssignment, *gitlab.Response, error)
+}
+
 // GitLabClient interface that provides access to all GitLab services.
 type GitLabClient interface {
 	Projects() ProjectsService
@@ -57,4 +63,5 @@ type GitLabClient interface {
 	Notes() NotesService
 	Groups() GroupsService
 	Epics() EpicsService
+	EpicIssues() EpicIssuesService
 }

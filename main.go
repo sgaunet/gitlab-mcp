@@ -25,7 +25,13 @@ const (
 
 // Error variables for static errors.
 var (
-	ErrInvalidStateValue = errors.New("state must be 'opened' or 'closed'")
+	ErrInvalidStateValue            = errors.New("state must be 'opened' or 'closed'")
+	ErrGroupPathRequired            = errors.New("group_path is required and must be a non-empty string")
+	ErrEpicIIDRequired              = errors.New("epic_iid is required and must be a number")
+	ErrEpicIIDMustBePositive        = errors.New("epic_iid must be greater than 0")
+	ErrProjectPathRequired          = errors.New("project_path is required and must be a non-empty string")
+	ErrIssueIIDRequired             = errors.New("issue_iid is required and must be a number")
+	ErrIssueIIDMustBePositive       = errors.New("issue_iid must be greater than 0")
 )
 
 // setupListIssuesTool creates and registers the list_issues tool.
@@ -607,6 +613,76 @@ func handleCreateEpicRequest(
 	}
 }
 
+// setupAddIssueToEpicTool creates and registers the add_issue_to_epic tool.
+func setupAddIssueToEpicTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	addIssueToEpicTool := mcp.NewTool("add_issue_to_epic",
+		mcp.WithDescription("Attach an issue to an epic (Premium/Ultimate tier). "+
+			"Note: The Epics API is deprecated and will be removed in GitLab API v5. "+
+			"Consider using Work Items API for future implementations."),
+		mcp.WithString("group_path",
+			mcp.Required(),
+			mcp.Description("GitLab group path containing the epic (e.g., 'myorg' or 'parent/subgroup'). "+
+				"Run 'git remote -v' to find the full path from the repository URL"),
+		),
+		mcp.WithNumber("epic_iid",
+			mcp.Required(),
+			mcp.Description("Epic internal ID (IID) to attach the issue to"),
+		),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path containing the issue (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("issue_iid",
+			mcp.Required(),
+			mcp.Description("Issue internal ID (IID) to attach to the epic"),
+		),
+	)
+
+	s.AddTool(addIssueToEpicTool, handleAddIssueToEpicRequest(appInstance, debugLogger))
+}
+
+// handleAddIssueToEpicRequest handles the add_issue_to_epic tool request.
+func handleAddIssueToEpicRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received add_issue_to_epic tool request", "args", args)
+
+		// Extract and validate parameters
+		opts, err := extractAddIssueToEpicParams(args)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing add_issue_to_epic request", "opts", opts)
+
+		// Call the app method
+		epicIssue, err := appInstance.AddIssueToEpic(opts)
+		if err != nil {
+			if errors.Is(err, app.ErrEpicsTierRequired) {
+				return mcp.NewToolResultError(
+					"This feature requires GitLab Premium or Ultimate. " +
+						"See https://docs.gitlab.com/ee/user/group/epics/ for more information.",
+				), nil
+			}
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(epicIssue)
+		if err != nil {
+			debugLogger.Error("Failed to marshal epic issue to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format epic issue response"), nil
+		}
+
+		debugLogger.Info("Successfully added issue to epic",
+			"issue_id", epicIssue.ID, "issue_iid", epicIssue.IID, "epic_iid", epicIssue.EpicIID)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -1008,6 +1084,48 @@ func extractCreateEpicParams(
 	return groupPath, opts, nil
 }
 
+// extractAddIssueToEpicParams extracts and validates add_issue_to_epic parameters.
+func extractAddIssueToEpicParams(args map[string]any) (*app.AddIssueToEpicOptions, error) {
+	// Extract group_path
+	groupPath, ok := args["group_path"].(string)
+	if !ok || groupPath == "" {
+		return nil, ErrGroupPathRequired
+	}
+
+	// Extract epic_iid
+	epicIIDFloat, ok := args["epic_iid"].(float64)
+	if !ok {
+		return nil, ErrEpicIIDRequired
+	}
+	epicIID := int(epicIIDFloat)
+	if epicIID <= 0 {
+		return nil, ErrEpicIIDMustBePositive
+	}
+
+	// Extract project_path
+	projectPath, ok := args["project_path"].(string)
+	if !ok || projectPath == "" {
+		return nil, ErrProjectPathRequired
+	}
+
+	// Extract issue_iid
+	issueIIDFloat, ok := args["issue_iid"].(float64)
+	if !ok {
+		return nil, ErrIssueIIDRequired
+	}
+	issueIID := int64(issueIIDFloat)
+	if issueIID <= 0 {
+		return nil, ErrIssueIIDMustBePositive
+	}
+
+	return &app.AddIssueToEpicOptions{
+		GroupPath:   groupPath,
+		EpicIID:     epicIID,
+		ProjectPath: projectPath,
+		IssueIID:    issueIID,
+	}, nil
+}
+
 // buildCreateEpicOptions builds CreateEpicOptions from request arguments.
 func buildCreateEpicOptions(title string, args map[string]any) *app.CreateEpicOptions {
 	opts := &app.CreateEpicOptions{
@@ -1077,6 +1195,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
 	setupListEpicsTool(s, appInstance, debugLogger)
 	setupCreateEpicTool(s, appInstance, debugLogger)
+	setupAddIssueToEpicTool(s, appInstance, debugLogger)
 }
 
 func main() {
