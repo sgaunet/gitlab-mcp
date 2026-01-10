@@ -400,7 +400,7 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -427,7 +427,7 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	issues, _, err := a.client.Issues().ListProjectIssues(projectID, listOpts)
 	if err != nil {
 		a.logger.Error("Failed to list project issues", "error", err, "project_id", projectID)
-		return nil, fmt.Errorf("failed to list project issues: %w", err)
+		return nil, fmt.Errorf("failed to list project issues for %s: %w", projectPath, err)
 	}
 
 	a.logger.Debug("Retrieved issues", "count", len(issues), "project_id", projectID)
@@ -458,7 +458,7 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -490,7 +490,7 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	issue, _, err := a.client.Issues().CreateIssue(projectID, createOpts)
 	if err != nil {
 		a.logger.Error("Failed to create issue", "error", err, "project_id", projectID, "title", opts.Title)
-		return nil, fmt.Errorf("failed to create issue: %w", err)
+		return nil, fmt.Errorf("failed to create issue for project %s: %w", projectPath, err)
 	}
 
 	a.logger.Debug("Created issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
@@ -512,7 +512,7 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -549,7 +549,7 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 	labels, _, err := a.client.Labels().ListLabels(projectID, listOpts)
 	if err != nil {
 		a.logger.Error("Failed to list project labels", "error", err, "project_id", projectID)
-		return nil, fmt.Errorf("failed to list project labels: %w", err)
+		return nil, fmt.Errorf("failed to list project labels for %s: %w", projectPath, err)
 	}
 
 	a.logger.Debug("Retrieved labels", "count", len(labels), "project_id", projectID)
@@ -592,7 +592,7 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *Updat
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -626,7 +626,7 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *Updat
 	issue, _, err := a.client.Issues().UpdateIssue(projectID, issueIID, updateOpts)
 	if err != nil {
 		a.logger.Error("Failed to update issue", "error", err, "project_id", projectID, "issue_iid", issueIID)
-		return nil, fmt.Errorf("failed to update issue: %w", err)
+		return nil, fmt.Errorf("failed to update issue %d for project %s: %w", issueIID, projectPath, err)
 	}
 
 	a.logger.Debug("Updated issue", "id", issue.ID, "iid", issue.IID, "project_id", projectID)
@@ -654,7 +654,7 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 		createOpts := &gitlab.CreateIssueNoteOptions{Body: &body}
 		note, _, err := a.client.Notes().CreateIssueNote(projectID, iid, createOpts)
 		if err != nil {
-			return nil, fmt.Errorf("gitlab API call failed: %w", err)
+			return nil, fmt.Errorf("gitlab API call failed for issue %d in project %s: %w", iid, projectPath, err)
 		}
 		return note, nil
 	}
@@ -679,7 +679,7 @@ func (a *App) GetProjectDescription(projectPath string) (*ProjectInfo, error) {
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 
 	result := &ProjectInfo{
@@ -703,7 +703,7 @@ func (a *App) UpdateProjectDescription(projectPath string, description string) (
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -716,7 +716,7 @@ func (a *App) UpdateProjectDescription(projectPath string, description string) (
 	updatedProject, _, err := a.client.Projects().EditProject(projectID, updateOpts)
 	if err != nil {
 		a.logger.Error("Failed to update project description", "error", err, "project_id", projectID)
-		return nil, fmt.Errorf("failed to update project description: %w", err)
+		return nil, fmt.Errorf("failed to update project description for %s: %w", projectPath, err)
 	}
 
 	result := &ProjectInfo{
@@ -741,7 +741,7 @@ func (a *App) GetProjectTopics(projectPath string) (*ProjectInfo, error) {
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 
 	result := &ProjectInfo{
@@ -766,7 +766,7 @@ func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*Project
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -779,7 +779,7 @@ func (a *App) UpdateProjectTopics(projectPath string, topics []string) (*Project
 	updatedProject, _, err := a.client.Projects().EditProject(projectID, updateOpts)
 	if err != nil {
 		a.logger.Error("Failed to update project topics", "error", err, "project_id", projectID)
-		return nil, fmt.Errorf("failed to update project topics: %w", err)
+		return nil, fmt.Errorf("failed to update project topics for %s: %w", projectPath, err)
 	}
 
 	result := &ProjectInfo{
@@ -976,7 +976,7 @@ func (a *App) resolveGroupID(groupPath string) (int64, error) {
 			)
 		}
 
-		return 0, fmt.Errorf("failed to get group: %w", err)
+		return 0, fmt.Errorf("failed to get group %s: %w", groupPath, err)
 	}
 	return group.ID, nil
 }
@@ -1116,7 +1116,7 @@ func (a *App) addNoteCommon(
 	project, _, err := a.client.Projects().GetProject(projectPath, nil)
 	if err != nil {
 		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project: %w", err)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
 	}
 	projectID := project.ID
 
@@ -1125,7 +1125,10 @@ func (a *App) addNoteCommon(
 	if err != nil {
 		a.logger.Error("Failed to create note", "type", noteType, "error", err,
 			"project_id", projectID, "iid", iid)
-		return nil, fmt.Errorf("failed to create %s note: %w", noteType, err)
+		return nil, fmt.Errorf(
+			"failed to create %s note for %s %d in project %s: %w",
+			noteType, noteType, iid, projectPath, err,
+		)
 	}
 
 	a.logger.Debug("Created note", "type", noteType, "id", note.ID,
@@ -1152,7 +1155,7 @@ func (a *App) validateLabels(projectID int64, projectPath string, requestedLabel
 	})
 	if err != nil {
 		a.logger.Error("Failed to retrieve existing labels for validation", "error", err, "project_id", projectID)
-		return fmt.Errorf("failed to validate labels: %w", err)
+		return fmt.Errorf("failed to validate labels for project %s: %w", projectPath, err)
 	}
 
 	// Create a map of existing label names (case-insensitive)
