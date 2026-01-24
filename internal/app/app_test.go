@@ -2064,3 +2064,226 @@ func TestApp_parseDate(t *testing.T) {
 		})
 	}
 }
+
+func TestApp_GetLatestPipeline(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name    string
+		opts    *GetLatestPipelineOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockPipelinesService)
+		want    *Pipeline
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "successful get latest pipeline",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Pipelines").Return(pipelines)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				orderBy := "updated_at"
+				sort := "desc"
+				expectedOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), expectedOpts).Return(
+					[]*gitlab.PipelineInfo{
+						{
+							ID:        42,
+							IID:       10,
+							ProjectID: 123,
+							Status:    "success",
+							Source:    "push",
+							Ref:       "main",
+							SHA:       "abc123def456",
+							WebURL:    "https://gitlab.com/test/project/-/pipelines/42",
+							CreatedAt: &testTime,
+							UpdatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: &Pipeline{
+				ID:        42,
+				IID:       10,
+				ProjectID: 123,
+				Status:    "success",
+				Source:    "push",
+				Ref:       "main",
+				SHA:       "abc123def456",
+				WebURL:    "https://gitlab.com/test/project/-/pipelines/42",
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful get with ref filter",
+			opts: &GetLatestPipelineOptions{Ref: "develop"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Pipelines").Return(pipelines)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				orderBy := "updated_at"
+				sort := "desc"
+				ref := "develop"
+				expectedOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					Ref:         &ref,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), expectedOpts).Return(
+					[]*gitlab.PipelineInfo{
+						{
+							ID:        43,
+							IID:       11,
+							ProjectID: 123,
+							Status:    "running",
+							Source:    "push",
+							Ref:       "develop",
+							SHA:       "xyz789abc123",
+							WebURL:    "https://gitlab.com/test/project/-/pipelines/43",
+							CreatedAt: &testTime,
+							UpdatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: &Pipeline{
+				ID:        43,
+				IID:       11,
+				ProjectID: 123,
+				Status:    "running",
+				Source:    "push",
+				Ref:       "develop",
+				SHA:       "xyz789abc123",
+				WebURL:    "https://gitlab.com/test/project/-/pipelines/43",
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "no pipelines found",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Pipelines").Return(pipelines)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				orderBy := "updated_at"
+				sort := "desc"
+				expectedOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), expectedOpts).Return(
+					[]*gitlab.PipelineInfo{},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "no pipelines found",
+		},
+		{
+			name: "project not found",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+
+				projects.On("GetProject", "test/nonexistent", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to get project",
+		},
+		{
+			name: "api error when listing",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Pipelines").Return(pipelines)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				orderBy := "updated_at"
+				sort := "desc"
+				expectedOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), expectedOpts).Return(
+					([]*gitlab.PipelineInfo)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to list project pipelines",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockPipelines := &MockPipelinesService{}
+
+			tt.setup(mockClient, mockProjects, mockPipelines)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+
+			projectPath := "test/project"
+			if tt.name == "project not found" {
+				projectPath = "test/nonexistent"
+			}
+
+			result, err := app.GetLatestPipeline(projectPath, tt.opts)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tt.want.ID, result.ID)
+				assert.Equal(t, tt.want.Status, result.Status)
+				assert.Equal(t, tt.want.Ref, result.Ref)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockPipelines.AssertExpectations(t)
+		})
+	}
+}

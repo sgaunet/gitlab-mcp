@@ -62,6 +62,12 @@ func (m *MockGitLabClient) EpicIssues() EpicIssuesService {
 	return result
 }
 
+func (m *MockGitLabClient) Pipelines() PipelinesService {
+	args := m.Called()
+	result, _ := args.Get(0).(PipelinesService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -244,4 +250,19 @@ func (m *MockEpicIssuesService) AssignEpicIssue(
 	epicIssue, _ := args.Get(0).(*gitlab.EpicIssueAssignment)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return epicIssue, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockPipelinesService is a mock implementation of PipelinesService.
+type MockPipelinesService struct {
+	mock.Mock
+}
+
+func (m *MockPipelinesService) ListProjectPipelines(
+	pid any,
+	opt *gitlab.ListProjectPipelinesOptions,
+) ([]*gitlab.PipelineInfo, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	pipelines, _ := args.Get(0).([]*gitlab.PipelineInfo)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return pipelines, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

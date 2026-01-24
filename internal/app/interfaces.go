@@ -54,6 +54,14 @@ type EpicIssuesService interface {
 	AssignEpicIssue(gid any, epic, issue int64) (*gitlab.EpicIssueAssignment, *gitlab.Response, error)
 }
 
+// PipelinesService interface for GitLab Pipelines operations.
+type PipelinesService interface {
+	ListProjectPipelines(
+		pid any,
+		opt *gitlab.ListProjectPipelinesOptions,
+	) ([]*gitlab.PipelineInfo, *gitlab.Response, error)
+}
+
 // GitLabClient interface that provides access to all GitLab services.
 type GitLabClient interface {
 	Projects() ProjectsService
@@ -64,4 +72,5 @@ type GitLabClient interface {
 	Groups() GroupsService
 	Epics() EpicsService
 	EpicIssues() EpicIssuesService
+	Pipelines() PipelinesService
 }

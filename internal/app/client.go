@@ -58,6 +58,11 @@ func (g *GitLabClientWrapper) EpicIssues() EpicIssuesService {
 	return &EpicIssuesServiceWrapper{service: g.client.EpicIssues}
 }
 
+// Pipelines returns the Pipelines service.
+func (g *GitLabClientWrapper) Pipelines() PipelinesService {
+	return &PipelinesServiceWrapper{service: g.client.Pipelines}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -246,4 +251,20 @@ func (e *EpicIssuesServiceWrapper) AssignEpicIssue(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return epicIssue, resp, nil
+}
+
+// PipelinesServiceWrapper wraps the real Pipelines service.
+type PipelinesServiceWrapper struct {
+	service gitlab.PipelinesServiceInterface
+}
+
+func (p *PipelinesServiceWrapper) ListProjectPipelines(
+	pid any,
+	opt *gitlab.ListProjectPipelinesOptions,
+) ([]*gitlab.PipelineInfo, *gitlab.Response, error) {
+	pipelines, resp, err := p.service.ListProjectPipelines(pid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return pipelines, resp, nil
 }

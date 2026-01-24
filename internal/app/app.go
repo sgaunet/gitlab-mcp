@@ -38,6 +38,7 @@ var (
 	ErrProjectPathRequired   = errors.New("project path is required")
 	ErrGroupPathRequired     = errors.New("group path is required")
 	ErrIssueNotFound         = errors.New("issue not found")
+	ErrNoPipelinesFound      = errors.New("no pipelines found")
 )
 
 type App struct {
@@ -175,6 +176,11 @@ type ListEpicsOptions struct {
 	Limit int64
 }
 
+// GetLatestPipelineOptions contains options for getting the latest pipeline.
+type GetLatestPipelineOptions struct {
+	Ref string // Optional: filter by branch/tag name
+}
+
 // CreateEpicOptions contains options for creating a group epic.
 type CreateEpicOptions struct {
 	Title        string
@@ -261,6 +267,20 @@ type EpicIssueAssignment struct {
 	WebURL      string         `json:"web_url"`
 	Labels      []string       `json:"labels"`
 	Author      map[string]any `json:"author"`
+}
+
+// Pipeline represents a GitLab pipeline.
+type Pipeline struct {
+	ID        int64  `json:"id"`
+	IID       int64  `json:"iid"`
+	ProjectID int64  `json:"project_id"`
+	Status    string `json:"status"`
+	Source    string `json:"source"`
+	Ref       string `json:"ref"`
+	SHA       string `json:"sha"`
+	WebURL    string `json:"web_url"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -372,6 +392,30 @@ func convertGitLabEpicIssueAssignment(epicIssue *gitlab.EpicIssueAssignment) Epi
 		WebURL:      epicIssue.Issue.WebURL,
 		Labels:      epicIssue.Issue.Labels,
 		Author:      author,
+	}
+}
+
+// convertGitLabPipeline converts a GitLab PipelineInfo to our Pipeline struct.
+func convertGitLabPipeline(pipeline *gitlab.PipelineInfo) Pipeline {
+	var createdAt, updatedAt string
+	if pipeline.CreatedAt != nil {
+		createdAt = pipeline.CreatedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if pipeline.UpdatedAt != nil {
+		updatedAt = pipeline.UpdatedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return Pipeline{
+		ID:        pipeline.ID,
+		IID:       pipeline.IID,
+		ProjectID: pipeline.ProjectID,
+		Status:    pipeline.Status,
+		Source:    pipeline.Source,
+		Ref:       pipeline.Ref,
+		SHA:       pipeline.SHA,
+		WebURL:    pipeline.WebURL,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}
 }
 
@@ -948,6 +992,58 @@ func (a *App) AddIssueToEpic(opts *AddIssueToEpicOptions) (*EpicIssueAssignment,
 	result := convertGitLabEpicIssueAssignment(epicIssue)
 	a.logger.Info("Successfully added issue to epic",
 		"issue_id", result.ID, "issue_iid", result.IID, "epic_iid", result.EpicIID)
+
+	return &result, nil
+}
+
+// GetLatestPipeline retrieves the latest pipeline for a given project path.
+func (a *App) GetLatestPipeline(projectPath string, opts *GetLatestPipelineOptions) (*Pipeline, error) {
+	a.logger.Debug("Getting latest pipeline for project", "project_path", projectPath, "options", opts)
+
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
+	}
+	projectID := project.ID
+
+	// Create GitLab API options - request only 1 pipeline, sorted by updated_at desc
+	orderBy := "updated_at"
+	sort := "desc"
+	listOpts := &gitlab.ListProjectPipelinesOptions{
+		OrderBy:     &orderBy,
+		Sort:        &sort,
+		ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+	}
+
+	// Add ref filter if provided
+	if opts != nil && opts.Ref != "" {
+		listOpts.Ref = &opts.Ref
+	}
+
+	// Call GitLab API
+	pipelines, _, err := a.client.Pipelines().ListProjectPipelines(projectID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to list project pipelines", "error", err, "project_id", projectID)
+		return nil, fmt.Errorf("failed to list project pipelines for %s: %w", projectPath, err)
+	}
+
+	// Check if any pipelines exist
+	if len(pipelines) == 0 {
+		a.logger.Debug("No pipelines found", "project_id", projectID)
+		return nil, fmt.Errorf("%w for project %s", ErrNoPipelinesFound, projectPath)
+	}
+
+	a.logger.Debug("Retrieved latest pipeline", "pipeline_id", pipelines[0].ID, "project_id", projectID)
+
+	result := convertGitLabPipeline(pipelines[0])
+
+	a.logger.Info("Successfully retrieved latest pipeline",
+		"pipeline_id", result.ID,
+		"status", result.Status,
+		"ref", result.Ref,
+		"project_id", projectID)
 
 	return &result, nil
 }

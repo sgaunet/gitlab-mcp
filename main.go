@@ -683,6 +683,70 @@ func handleAddIssueToEpicRequest(
 	}
 }
 
+// setupGetLatestPipelineTool creates and registers the get_latest_pipeline tool.
+func setupGetLatestPipelineTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	getLatestPipelineTool := mcp.NewTool("get_latest_pipeline",
+		mcp.WithDescription("Get the latest pipeline for a GitLab project by project path. "+
+			"Returns the most recently updated pipeline, optionally filtered by branch/tag."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: filter by branch or tag name (e.g., 'main', 'develop', 'v1.0.0')"),
+		),
+	)
+
+	s.AddTool(getLatestPipelineTool, handleGetLatestPipelineRequest(appInstance, debugLogger))
+}
+
+// handleGetLatestPipelineRequest handles the get_latest_pipeline tool request.
+func handleGetLatestPipelineRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received get_latest_pipeline tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract optional parameters
+		opts := &app.GetLatestPipelineOptions{}
+		if ref, ok := args["ref"].(string); ok && ref != "" {
+			opts.Ref = ref
+		}
+
+		debugLogger.Debug("Processing get_latest_pipeline request", "project_path", projectPath, "opts", opts)
+
+		// Call the app method
+		pipeline, err := appInstance.GetLatestPipeline(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to get latest pipeline", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get latest pipeline: %v", err)), nil
+		}
+
+		// Convert pipeline to JSON
+		jsonData, err := json.Marshal(pipeline)
+		if err != nil {
+			debugLogger.Error("Failed to marshal pipeline to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format pipeline response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved latest pipeline",
+			"pipeline_id", pipeline.ID,
+			"status", pipeline.Status,
+			"project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -1196,6 +1260,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupListEpicsTool(s, appInstance, debugLogger)
 	setupCreateEpicTool(s, appInstance, debugLogger)
 	setupAddIssueToEpicTool(s, appInstance, debugLogger)
+	setupGetLatestPipelineTool(s, appInstance, debugLogger)
 }
 
 func main() {
