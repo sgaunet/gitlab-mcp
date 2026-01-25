@@ -2287,3 +2287,557 @@ func TestApp_GetLatestPipeline(t *testing.T) {
 		})
 	}
 }
+
+func TestApp_ListPipelineJobs(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name    string
+		opts    *ListPipelineJobsOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockJobsService, *MockPipelinesService)
+		want    []PipelineJob
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "explicit pipeline ID - happy path",
+			opts: &ListPipelineJobsOptions{
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:             1001,
+							Name:           "build:app",
+							Stage:          "build",
+							Status:         "success",
+							Ref:            "main",
+							Duration:       120.5,
+							QueuedDuration: 10.2,
+							FailureReason:  "",
+							WebURL:         "https://gitlab.com/test/project/-/jobs/1001",
+							CreatedAt:      &testTime,
+							StartedAt:      &testTime,
+							FinishedAt:     &testTime,
+							Runner: gitlab.JobRunner{
+								ID:          999,
+								Description: "docker-runner-1",
+								Active:      true,
+							},
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []PipelineJob{
+				{
+					ID:             1001,
+					Name:           "build:app",
+					Stage:          "build",
+					Status:         "success",
+					Ref:            "main",
+					Duration:       120.5,
+					QueuedDuration: 10.2,
+					FailureReason:  "",
+					WebURL:         "https://gitlab.com/test/project/-/jobs/1001",
+					CreatedAt:      testTime.Format("2006-01-02T15:04:05Z"),
+					StartedAt:      testTime.Format("2006-01-02T15:04:05Z"),
+					FinishedAt:     testTime.Format("2006-01-02T15:04:05Z"),
+					Runner: &JobRunner{
+						ID:          999,
+						Description: "docker-runner-1",
+						Active:      true,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "latest pipeline with no filters",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects).Twice()
+				client.On("Pipelines").Return(pipelines)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				).Twice()
+
+				orderBy := "updated_at"
+				sort := "desc"
+				pipelineOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), pipelineOpts).Return(
+					[]*gitlab.PipelineInfo{
+						{
+							ID:        42,
+							IID:       10,
+							ProjectID: 123,
+							Status:    "failed",
+							Source:    "push",
+							Ref:       "main",
+							SHA:       "abc123",
+							WebURL:    "https://gitlab.com/test/project/-/pipelines/42",
+							CreatedAt: &testTime,
+							UpdatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:             2001,
+							Name:           "test:unit",
+							Stage:          "test",
+							Status:         "failed",
+							Ref:            "main",
+							Duration:       45.3,
+							QueuedDuration: 5.1,
+							FailureReason:  "script_failure",
+							WebURL:         "https://gitlab.com/test/project/-/jobs/2001",
+							CreatedAt:      &testTime,
+							StartedAt:      &testTime,
+							FinishedAt:     &testTime,
+							Runner: gitlab.JobRunner{
+								ID:          888,
+								Description: "runner-2",
+								Active:      true,
+							},
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []PipelineJob{
+				{
+					ID:             2001,
+					Name:           "test:unit",
+					Stage:          "test",
+					Status:         "failed",
+					Ref:            "main",
+					Duration:       45.3,
+					QueuedDuration: 5.1,
+					FailureReason:  "script_failure",
+					WebURL:         "https://gitlab.com/test/project/-/jobs/2001",
+					CreatedAt:      testTime.Format("2006-01-02T15:04:05Z"),
+					StartedAt:      testTime.Format("2006-01-02T15:04:05Z"),
+					FinishedAt:     testTime.Format("2006-01-02T15:04:05Z"),
+					Runner: &JobRunner{
+						ID:          888,
+						Description: "runner-2",
+						Active:      true,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "latest pipeline with ref filter",
+			opts: &ListPipelineJobsOptions{
+				Ref: "develop",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects).Twice()
+				client.On("Pipelines").Return(pipelines)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				).Twice()
+
+				orderBy := "updated_at"
+				sort := "desc"
+				ref := "develop"
+				pipelineOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					Ref:         &ref,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), pipelineOpts).Return(
+					[]*gitlab.PipelineInfo{
+						{
+							ID:        50,
+							IID:       15,
+							ProjectID: 123,
+							Status:    "success",
+							Source:    "push",
+							Ref:       "develop",
+							SHA:       "xyz789",
+							WebURL:    "https://gitlab.com/test/project/-/pipelines/50",
+							CreatedAt: &testTime,
+							UpdatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(50), expectedOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:        3001,
+							Name:      "deploy:staging",
+							Stage:     "deploy",
+							Status:    "success",
+							Ref:       "develop",
+							WebURL:    "https://gitlab.com/test/project/-/jobs/3001",
+							CreatedAt: &testTime,
+							Runner: gitlab.JobRunner{ID: 0},
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []PipelineJob{
+				{
+					ID:        3001,
+					Name:      "deploy:staging",
+					Stage:     "deploy",
+					Status:    "success",
+					Ref:       "develop",
+					WebURL:    "https://gitlab.com/test/project/-/jobs/3001",
+					CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+					Runner:    nil, // Runner ID is 0, so should be nil
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "status filtering with scope",
+			opts: &ListPipelineJobsOptions{
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+				Scope:      []string{"failed", "canceled"},
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				scopes := []gitlab.BuildStateValue{"failed", "canceled"}
+				expectedOpts := &gitlab.ListJobsOptions{
+					Scope:       &scopes,
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:            4001,
+							Name:          "test:integration",
+							Stage:         "test",
+							Status:        "failed",
+							Ref:           "main",
+							FailureReason: "script_failure",
+							WebURL:        "https://gitlab.com/test/project/-/jobs/4001",
+							CreatedAt:     &testTime,
+							Runner:        gitlab.JobRunner{ID: 0},
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []PipelineJob{
+				{
+					ID:            4001,
+					Name:          "test:integration",
+					Stage:         "test",
+					Status:        "failed",
+					Ref:           "main",
+					FailureReason: "script_failure",
+					WebURL:        "https://gitlab.com/test/project/-/jobs/4001",
+					CreatedAt:     testTime.Format("2006-01-02T15:04:05Z"),
+					Runner:        nil,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "stage filtering (client-side)",
+			opts: &ListPipelineJobsOptions{
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+				Stage:      "build",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:        5001,
+							Name:      "build:frontend",
+							Stage:     "build",
+							Status:    "success",
+							Ref:       "main",
+							WebURL:    "https://gitlab.com/test/project/-/jobs/5001",
+							CreatedAt: &testTime,
+							Runner:    gitlab.JobRunner{ID: 0},
+						},
+						{
+							ID:        5002,
+							Name:      "test:unit",
+							Stage:     "test",
+							Status:    "success",
+							Ref:       "main",
+							WebURL:    "https://gitlab.com/test/project/-/jobs/5002",
+							CreatedAt: &testTime,
+							Runner:    gitlab.JobRunner{ID: 0},
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []PipelineJob{
+				{
+					ID:        5001,
+					Name:      "build:frontend",
+					Stage:     "build",
+					Status:    "success",
+					Ref:       "main",
+					WebURL:    "https://gitlab.com/test/project/-/jobs/5001",
+					CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+					Runner:    nil,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "combined status and stage filtering",
+			opts: &ListPipelineJobsOptions{
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+				Scope:      []string{"failed"},
+				Stage:      "test",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				scopes := []gitlab.BuildStateValue{"failed"}
+				expectedOpts := &gitlab.ListJobsOptions{
+					Scope:       &scopes,
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:            6001,
+							Name:          "test:integration",
+							Stage:         "test",
+							Status:        "failed",
+							Ref:           "main",
+							FailureReason: "script_failure",
+							WebURL:        "https://gitlab.com/test/project/-/jobs/6001",
+							CreatedAt:     &testTime,
+							Runner:        gitlab.JobRunner{ID: 0},
+						},
+						{
+							ID:            6002,
+							Name:          "build:app",
+							Stage:         "build",
+							Status:        "failed",
+							Ref:           "main",
+							FailureReason: "unknown_failure",
+							WebURL:        "https://gitlab.com/test/project/-/jobs/6002",
+							CreatedAt:     &testTime,
+							Runner:        gitlab.JobRunner{ID: 0},
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want: []PipelineJob{
+				{
+					ID:            6001,
+					Name:          "test:integration",
+					Stage:         "test",
+					Status:        "failed",
+					Ref:           "main",
+					FailureReason: "script_failure",
+					WebURL:        "https://gitlab.com/test/project/-/jobs/6001",
+					CreatedAt:     testTime.Format("2006-01-02T15:04:05Z"),
+					Runner:        nil,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty results (no error)",
+			opts: &ListPipelineJobsOptions{
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					[]*gitlab.Job{},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want:    []PipelineJob{},
+			wantErr: false,
+		},
+		{
+			name: "project not found",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+
+				projects.On("GetProject", "test/nonexistent", (*gitlab.GetProjectOptions)(nil)).Return(
+					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("404 Project Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to get project",
+		},
+		{
+			name: "no pipelines found (error propagation)",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Pipelines").Return(pipelines)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				orderBy := "updated_at"
+				sort := "desc"
+				pipelineOpts := &gitlab.ListProjectPipelinesOptions{
+					OrderBy:     &orderBy,
+					Sort:        &sort,
+					ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+				}
+
+				pipelines.On("ListProjectPipelines", int64(123), pipelineOpts).Return(
+					[]*gitlab.PipelineInfo{},
+					&gitlab.Response{}, nil,
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "no pipelines found",
+		},
+		{
+			name: "api error when listing jobs",
+			opts: &ListPipelineJobsOptions{
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService) {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedOpts).Return(
+					([]*gitlab.Job)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errMsg:  "failed to list pipeline jobs",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockProjects := &MockProjectsService{}
+			mockJobs := &MockJobsService{}
+			mockPipelines := &MockPipelinesService{}
+
+			tt.setup(mockClient, mockProjects, mockJobs, mockPipelines)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+
+			projectPath := "test/project"
+			if tt.name == "project not found" {
+				projectPath = "test/nonexistent"
+			}
+
+			result, err := app.ListPipelineJobs(projectPath, tt.opts)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, len(tt.want), len(result))
+				for i := range tt.want {
+					assert.Equal(t, tt.want[i].ID, result[i].ID)
+					assert.Equal(t, tt.want[i].Name, result[i].Name)
+					assert.Equal(t, tt.want[i].Stage, result[i].Stage)
+					assert.Equal(t, tt.want[i].Status, result[i].Status)
+					assert.Equal(t, tt.want[i].FailureReason, result[i].FailureReason)
+				}
+			}
+
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockJobs.AssertExpectations(t)
+			mockPipelines.AssertExpectations(t)
+		})
+	}
+}

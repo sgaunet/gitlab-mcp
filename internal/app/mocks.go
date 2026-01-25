@@ -68,6 +68,12 @@ func (m *MockGitLabClient) Pipelines() PipelinesService {
 	return result
 }
 
+func (m *MockGitLabClient) Jobs() JobsService {
+	args := m.Called()
+	result, _ := args.Get(0).(JobsService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -265,4 +271,20 @@ func (m *MockPipelinesService) ListProjectPipelines(
 	pipelines, _ := args.Get(0).([]*gitlab.PipelineInfo)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return pipelines, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockJobsService is a mock implementation of JobsService.
+type MockJobsService struct {
+	mock.Mock
+}
+
+func (m *MockJobsService) ListPipelineJobs(
+	pid any,
+	pipelineID int64,
+	opt *gitlab.ListJobsOptions,
+) ([]*gitlab.Job, *gitlab.Response, error) {
+	args := m.Called(pid, pipelineID, opt)
+	jobs, _ := args.Get(0).([]*gitlab.Job)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return jobs, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

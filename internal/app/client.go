@@ -63,6 +63,11 @@ func (g *GitLabClientWrapper) Pipelines() PipelinesService {
 	return &PipelinesServiceWrapper{service: g.client.Pipelines}
 }
 
+// Jobs returns the Jobs service.
+func (g *GitLabClientWrapper) Jobs() JobsService {
+	return &JobsServiceWrapper{service: g.client.Jobs}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -267,4 +272,21 @@ func (p *PipelinesServiceWrapper) ListProjectPipelines(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return pipelines, resp, nil
+}
+
+// JobsServiceWrapper wraps the real Jobs service.
+type JobsServiceWrapper struct {
+	service gitlab.JobsServiceInterface
+}
+
+func (j *JobsServiceWrapper) ListPipelineJobs(
+	pid any,
+	pipelineID int64,
+	opt *gitlab.ListJobsOptions,
+) ([]*gitlab.Job, *gitlab.Response, error) {
+	jobs, resp, err := j.service.ListPipelineJobs(pid, pipelineID, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return jobs, resp, nil
 }

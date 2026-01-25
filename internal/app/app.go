@@ -283,6 +283,38 @@ type Pipeline struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// PipelineJob represents a GitLab pipeline job.
+type PipelineJob struct {
+	ID             int64      `json:"id"`
+	Name           string     `json:"name"`
+	Stage          string     `json:"stage"`
+	Status         string     `json:"status"`
+	Ref            string     `json:"ref"`
+	CreatedAt      string     `json:"created_at"`
+	StartedAt      string     `json:"started_at"`
+	FinishedAt     string     `json:"finished_at"`
+	Duration       float64    `json:"duration"`
+	QueuedDuration float64    `json:"queued_duration"`
+	FailureReason  string     `json:"failure_reason"`
+	WebURL         string     `json:"web_url"`
+	Runner         *JobRunner `json:"runner,omitempty"`
+}
+
+// JobRunner represents runner information for a job.
+type JobRunner struct {
+	ID          int64  `json:"id"`
+	Description string `json:"description"`
+	Active      bool   `json:"active"`
+}
+
+// ListPipelineJobsOptions specifies the parameters for listing pipeline jobs.
+type ListPipelineJobsOptions struct {
+	PipelineID *int64   // Optional: specific pipeline ID (nil = use latest)
+	Ref        string   // Optional: branch/tag for finding latest pipeline
+	Scope      []string // Optional: filter by job status (API-side)
+	Stage      string   // Optional: filter by stage name (client-side)
+}
+
 // parseLabels splits comma-separated labels and trims spaces.
 func parseLabels(labels string) []string {
 	parts := strings.Split(labels, ",")
@@ -1046,6 +1078,112 @@ func (a *App) GetLatestPipeline(projectPath string, opts *GetLatestPipelineOptio
 		"project_id", projectID)
 
 	return &result, nil
+}
+
+// ListPipelineJobs retrieves all jobs for a pipeline with optional filtering.
+func (a *App) ListPipelineJobs(projectPath string, opts *ListPipelineJobsOptions) ([]PipelineJob, error) {
+	a.logger.Debug("Listing pipeline jobs for project", "project_path", projectPath, "options", opts)
+
+	// Step 1: Resolve project path to ID
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
+	}
+	projectID := project.ID
+
+	// Step 2: Resolve pipeline ID (if not provided, get latest)
+	var pipelineID int64
+	if opts != nil && opts.PipelineID != nil {
+		pipelineID = *opts.PipelineID
+		a.logger.Debug("Using explicit pipeline ID", "pipeline_id", pipelineID)
+	} else {
+		latestOpts := &GetLatestPipelineOptions{}
+		if opts != nil && opts.Ref != "" {
+			latestOpts.Ref = opts.Ref
+		}
+		pipeline, err := a.GetLatestPipeline(projectPath, latestOpts)
+		if err != nil {
+			a.logger.Error("Failed to get latest pipeline", "error", err, "project_path", projectPath)
+			return nil, fmt.Errorf("failed to get latest pipeline: %w", err)
+		}
+		pipelineID = pipeline.ID
+		a.logger.Debug("Using latest pipeline ID", "pipeline_id", pipelineID, "ref", latestOpts.Ref)
+	}
+
+	// Step 3: Build GitLab API options
+	listOpts := &gitlab.ListJobsOptions{
+		ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+	}
+
+	if opts != nil && len(opts.Scope) > 0 {
+		scopes := make([]gitlab.BuildStateValue, 0, len(opts.Scope))
+		for _, s := range opts.Scope {
+			scopes = append(scopes, gitlab.BuildStateValue(s))
+		}
+		listOpts.Scope = &scopes
+		a.logger.Debug("Applied scope filter", "scopes", opts.Scope)
+	}
+
+	// Step 4: Call GitLab API
+	jobs, _, err := a.client.Jobs().ListPipelineJobs(projectID, pipelineID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to list pipeline jobs", "error", err, "pipeline_id", pipelineID)
+		return nil, fmt.Errorf("failed to list pipeline jobs for pipeline %d: %w", pipelineID, err)
+	}
+
+	a.logger.Debug("Retrieved jobs from API", "count", len(jobs), "pipeline_id", pipelineID)
+
+	// Step 5: Convert and filter jobs
+	result := make([]PipelineJob, 0, len(jobs))
+	for _, job := range jobs {
+		// Apply client-side stage filter if provided
+		if opts != nil && opts.Stage != "" && job.Stage != opts.Stage {
+			continue
+		}
+		result = append(result, convertGitLabJob(job))
+	}
+
+	a.logger.Info("Successfully retrieved pipeline jobs",
+		"count", len(result),
+		"pipeline_id", pipelineID,
+		"project_path", projectPath)
+	return result, nil
+}
+
+// convertGitLabJob converts a GitLab job to our PipelineJob struct.
+func convertGitLabJob(job *gitlab.Job) PipelineJob {
+	result := PipelineJob{
+		ID:             job.ID,
+		Name:           job.Name,
+		Stage:          job.Stage,
+		Status:         job.Status,
+		Ref:            job.Ref,
+		Duration:       job.Duration,
+		QueuedDuration: job.QueuedDuration,
+		FailureReason:  job.FailureReason,
+		WebURL:         job.WebURL,
+	}
+
+	if job.CreatedAt != nil {
+		result.CreatedAt = job.CreatedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if job.StartedAt != nil {
+		result.StartedAt = job.StartedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if job.FinishedAt != nil {
+		result.FinishedAt = job.FinishedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	if job.Runner.ID != 0 {
+		result.Runner = &JobRunner{
+			ID:          job.Runner.ID,
+			Description: job.Runner.Description,
+			Active:      job.Runner.Active,
+		}
+	}
+
+	return result
 }
 
 // parseDate parses a date string in YYYY-MM-DD format to gitlab.ISOTime.

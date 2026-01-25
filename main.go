@@ -747,6 +747,120 @@ func handleGetLatestPipelineRequest(
 	}
 }
 
+// setupListPipelineJobsTool creates and registers the list_pipeline_jobs tool.
+func setupListPipelineJobsTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	listPipelineJobsTool := mcp.NewTool("list_pipeline_jobs",
+		mcp.WithDescription("List all jobs for a GitLab pipeline with filtering options. "+
+			"If pipeline_id is not provided, retrieves jobs from the latest pipeline. "+
+			"Useful for debugging CI/CD failures and analyzing pipeline execution."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("pipeline_id",
+			mcp.Description("Optional: specific pipeline ID. If not provided, uses the latest pipeline."),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: branch or tag name for finding the latest pipeline (e.g., 'main', 'develop'). "+
+				"Only used when pipeline_id is not provided."),
+		),
+		mcp.WithArray("scope",
+			mcp.Description("Optional: filter jobs by status. Can include: 'created', 'pending', 'running', "+
+				"'success', 'failed', 'canceled', 'skipped', 'manual', 'scheduled'. "+
+				"Example: ['failed', 'canceled'] to show only failed and canceled jobs."),
+		),
+		mcp.WithString("stage",
+			mcp.Description("Optional: filter jobs by stage name (e.g., 'build', 'test', 'deploy'). Case-sensitive."),
+		),
+	)
+
+	s.AddTool(listPipelineJobsTool, handleListPipelineJobsRequest(appInstance, debugLogger))
+}
+
+// handleListPipelineJobsRequest handles the list_pipeline_jobs tool request.
+func handleListPipelineJobsRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received list_pipeline_jobs tool request", "args", args)
+
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		opts, err := extractListPipelineJobsOptions(args, debugLogger)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing list_pipeline_jobs request", "project_path", projectPath, "opts", opts)
+
+		jobs, err := appInstance.ListPipelineJobs(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to list pipeline jobs", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to list pipeline jobs: %v", err)), nil
+		}
+
+		jsonData, err := json.Marshal(jobs)
+		if err != nil {
+			debugLogger.Error("Failed to marshal jobs to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format jobs response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved pipeline jobs", "count", len(jobs), "project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractListPipelineJobsOptions extracts and validates options from MCP request arguments.
+func extractListPipelineJobsOptions(args map[string]any, debugLogger *slog.Logger) (*app.ListPipelineJobsOptions, error) {
+	opts := &app.ListPipelineJobsOptions{}
+
+	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
+		pipelineID := int64(pipelineIDFloat)
+		opts.PipelineID = &pipelineID
+	}
+
+	if ref, ok := args["ref"].(string); ok && ref != "" {
+		opts.Ref = ref
+	}
+
+	if scopeInterface, ok := args["scope"].([]any); ok && len(scopeInterface) > 0 {
+		scopes := make([]string, 0, len(scopeInterface))
+		for _, s := range scopeInterface {
+			if statusStr, ok := s.(string); ok {
+				if !isValidJobStatus(statusStr) {
+					debugLogger.Warn("Invalid job status in scope", "status", statusStr)
+					return nil, fmt.Errorf("invalid job status '%s'. Valid: created, pending, running, success, failed, canceled, skipped, manual, scheduled", statusStr)
+				}
+				scopes = append(scopes, statusStr)
+			}
+		}
+		opts.Scope = scopes
+	}
+
+	if stage, ok := args["stage"].(string); ok && stage != "" {
+		opts.Stage = stage
+	}
+
+	return opts, nil
+}
+
+// isValidJobStatus checks if a job status is valid.
+func isValidJobStatus(status string) bool {
+	validStatuses := map[string]bool{
+		"created": true, "waiting_for_resource": true, "preparing": true,
+		"pending": true, "running": true, "success": true,
+		"failed": true, "canceled": true, "skipped": true,
+		"manual": true, "scheduled": true,
+	}
+	return validStatuses[status]
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -1261,6 +1375,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupCreateEpicTool(s, appInstance, debugLogger)
 	setupAddIssueToEpicTool(s, appInstance, debugLogger)
 	setupGetLatestPipelineTool(s, appInstance, debugLogger)
+	setupListPipelineJobsTool(s, appInstance, debugLogger)
 }
 
 func main() {
