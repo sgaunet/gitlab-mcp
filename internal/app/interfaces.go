@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
@@ -54,6 +56,28 @@ type EpicIssuesService interface {
 	AssignEpicIssue(gid any, epic, issue int64) (*gitlab.EpicIssueAssignment, *gitlab.Response, error)
 }
 
+// PipelinesService interface for GitLab Pipelines operations.
+type PipelinesService interface {
+	ListProjectPipelines(
+		pid any,
+		opt *gitlab.ListProjectPipelinesOptions,
+	) ([]*gitlab.PipelineInfo, *gitlab.Response, error)
+}
+
+// JobsService interface for GitLab Jobs operations.
+type JobsService interface {
+	ListPipelineJobs(
+		pid any,
+		pipelineID int64,
+		opt *gitlab.ListJobsOptions,
+	) ([]*gitlab.Job, *gitlab.Response, error)
+	GetTraceFile(
+		pid any,
+		jobID int64,
+		options ...gitlab.RequestOptionFunc,
+	) (io.Reader, *gitlab.Response, error)
+}
+
 // GitLabClient interface that provides access to all GitLab services.
 type GitLabClient interface {
 	Projects() ProjectsService
@@ -64,4 +88,6 @@ type GitLabClient interface {
 	Groups() GroupsService
 	Epics() EpicsService
 	EpicIssues() EpicIssuesService
+	Pipelines() PipelinesService
+	Jobs() JobsService
 }

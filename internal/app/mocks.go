@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+
 	"github.com/stretchr/testify/mock"
 	"gitlab.com/gitlab-org/api/client-go"
 )
@@ -59,6 +61,18 @@ func (m *MockGitLabClient) Epics() EpicsService {
 func (m *MockGitLabClient) EpicIssues() EpicIssuesService {
 	args := m.Called()
 	result, _ := args.Get(0).(EpicIssuesService)
+	return result
+}
+
+func (m *MockGitLabClient) Pipelines() PipelinesService {
+	args := m.Called()
+	result, _ := args.Get(0).(PipelinesService)
+	return result
+}
+
+func (m *MockGitLabClient) Jobs() JobsService {
+	args := m.Called()
+	result, _ := args.Get(0).(JobsService)
 	return result
 }
 
@@ -244,4 +258,46 @@ func (m *MockEpicIssuesService) AssignEpicIssue(
 	epicIssue, _ := args.Get(0).(*gitlab.EpicIssueAssignment)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return epicIssue, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockPipelinesService is a mock implementation of PipelinesService.
+type MockPipelinesService struct {
+	mock.Mock
+}
+
+func (m *MockPipelinesService) ListProjectPipelines(
+	pid any,
+	opt *gitlab.ListProjectPipelinesOptions,
+) ([]*gitlab.PipelineInfo, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	pipelines, _ := args.Get(0).([]*gitlab.PipelineInfo)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return pipelines, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockJobsService is a mock implementation of JobsService.
+type MockJobsService struct {
+	mock.Mock
+}
+
+func (m *MockJobsService) ListPipelineJobs(
+	pid any,
+	pipelineID int64,
+	opt *gitlab.ListJobsOptions,
+) ([]*gitlab.Job, *gitlab.Response, error) {
+	args := m.Called(pid, pipelineID, opt)
+	jobs, _ := args.Get(0).([]*gitlab.Job)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return jobs, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockJobsService) GetTraceFile(
+	pid any,
+	jobID int64,
+	options ...gitlab.RequestOptionFunc,
+) (io.Reader, *gitlab.Response, error) {
+	args := m.Called(pid, jobID, options)
+	reader, _ := args.Get(0).(io.Reader)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return reader, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

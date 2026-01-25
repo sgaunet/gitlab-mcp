@@ -32,6 +32,9 @@ var (
 	ErrProjectPathRequired          = errors.New("project_path is required and must be a non-empty string")
 	ErrIssueIIDRequired             = errors.New("issue_iid is required and must be a number")
 	ErrIssueIIDMustBePositive       = errors.New("issue_iid must be greater than 0")
+	ErrInvalidJobStatus             = errors.New("invalid job status")
+	ErrJobIDRequired                = errors.New("job_id must be a number")
+	ErrJobIDMustBePositive          = errors.New("job_id must be positive")
 )
 
 // setupListIssuesTool creates and registers the list_issues tool.
@@ -683,6 +686,397 @@ func handleAddIssueToEpicRequest(
 	}
 }
 
+// setupGetLatestPipelineTool creates and registers the get_latest_pipeline tool.
+func setupGetLatestPipelineTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	getLatestPipelineTool := mcp.NewTool("get_latest_pipeline",
+		mcp.WithDescription("Get the latest pipeline for a GitLab project by project path. "+
+			"Returns the most recently updated pipeline, optionally filtered by branch/tag."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
+				"'company/department/team/project'). Run 'git remote -v' to find the full path from the repository URL"),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: filter by branch or tag name (e.g., 'main', 'develop', 'v1.0.0')"),
+		),
+	)
+
+	s.AddTool(getLatestPipelineTool, handleGetLatestPipelineRequest(appInstance, debugLogger))
+}
+
+// handleGetLatestPipelineRequest handles the get_latest_pipeline tool request.
+func handleGetLatestPipelineRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received get_latest_pipeline tool request", "args", args)
+
+		// Extract project_path
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		// Extract optional parameters
+		opts := &app.GetLatestPipelineOptions{}
+		if ref, ok := args["ref"].(string); ok && ref != "" {
+			opts.Ref = ref
+		}
+
+		debugLogger.Debug("Processing get_latest_pipeline request", "project_path", projectPath, "opts", opts)
+
+		// Call the app method
+		pipeline, err := appInstance.GetLatestPipeline(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to get latest pipeline", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get latest pipeline: %v", err)), nil
+		}
+
+		// Convert pipeline to JSON
+		jsonData, err := json.Marshal(pipeline)
+		if err != nil {
+			debugLogger.Error("Failed to marshal pipeline to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format pipeline response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved latest pipeline",
+			"pipeline_id", pipeline.ID,
+			"status", pipeline.Status,
+			"project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// setupListPipelineJobsTool creates and registers the list_pipeline_jobs tool.
+func setupListPipelineJobsTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	listPipelineJobsTool := mcp.NewTool("list_pipeline_jobs",
+		mcp.WithDescription("List all jobs for a GitLab pipeline with filtering options. "+
+			"If pipeline_id is not provided, retrieves jobs from the latest pipeline. "+
+			"Useful for debugging CI/CD failures and analyzing pipeline execution."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("pipeline_id",
+			mcp.Description("Optional: specific pipeline ID. If not provided, uses the latest pipeline."),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: branch or tag name for finding the latest pipeline (e.g., 'main', 'develop'). "+
+				"Only used when pipeline_id is not provided."),
+		),
+		mcp.WithArray("scope",
+			mcp.Description("Optional: filter jobs by status. Can include: 'created', 'pending', 'running', "+
+				"'success', 'failed', 'canceled', 'skipped', 'manual', 'scheduled'. "+
+				"Example: ['failed', 'canceled'] to show only failed and canceled jobs."),
+		),
+		mcp.WithString("stage",
+			mcp.Description("Optional: filter jobs by stage name (e.g., 'build', 'test', 'deploy'). Case-sensitive."),
+		),
+	)
+
+	s.AddTool(listPipelineJobsTool, handleListPipelineJobsRequest(appInstance, debugLogger))
+}
+
+// handleListPipelineJobsRequest handles the list_pipeline_jobs tool request.
+func handleListPipelineJobsRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received list_pipeline_jobs tool request", "args", args)
+
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		opts, err := extractListPipelineJobsOptions(args, debugLogger)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing list_pipeline_jobs request", "project_path", projectPath, "opts", opts)
+
+		jobs, err := appInstance.ListPipelineJobs(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to list pipeline jobs", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to list pipeline jobs: %v", err)), nil
+		}
+
+		jsonData, err := json.Marshal(jobs)
+		if err != nil {
+			debugLogger.Error("Failed to marshal jobs to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format jobs response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved pipeline jobs", "count", len(jobs), "project_path", projectPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractListPipelineJobsOptions extracts and validates options from MCP request arguments.
+//
+//nolint:cyclop // Option extraction and validation requires multiple branches
+func extractListPipelineJobsOptions(
+	args map[string]any,
+	debugLogger *slog.Logger,
+) (*app.ListPipelineJobsOptions, error) {
+	opts := &app.ListPipelineJobsOptions{}
+
+	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
+		pipelineID := int64(pipelineIDFloat)
+		opts.PipelineID = &pipelineID
+	}
+
+	if ref, ok := args["ref"].(string); ok && ref != "" {
+		opts.Ref = ref
+	}
+
+	if scopeInterface, ok := args["scope"].([]any); ok && len(scopeInterface) > 0 {
+		scopes := make([]string, 0, len(scopeInterface))
+		for _, s := range scopeInterface {
+			if statusStr, ok := s.(string); ok {
+				if !isValidJobStatus(statusStr) {
+					debugLogger.Warn("Invalid job status in scope", "status", statusStr)
+					return nil, fmt.Errorf(
+						"%w: '%s'. Valid: created, pending, running, success, failed, canceled, skipped, manual, scheduled",
+						ErrInvalidJobStatus, statusStr,
+					)
+				}
+				scopes = append(scopes, statusStr)
+			}
+		}
+		opts.Scope = scopes
+	}
+
+	if stage, ok := args["stage"].(string); ok && stage != "" {
+		opts.Stage = stage
+	}
+
+	return opts, nil
+}
+
+// isValidJobStatus checks if a job status is valid.
+func isValidJobStatus(status string) bool {
+	validStatuses := map[string]bool{
+		"created": true, "waiting_for_resource": true, "preparing": true,
+		"pending": true, "running": true, "success": true,
+		"failed": true, "canceled": true, "skipped": true,
+		"manual": true, "scheduled": true,
+	}
+	return validStatuses[status]
+}
+
+// setupGetJobLogTool creates and registers the get_job_log tool.
+func setupGetJobLogTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	getJobLogTool := mcp.NewTool("get_job_log",
+		mcp.WithDescription("Retrieve complete log output for a specific GitLab CI/CD job. "+
+			"Returns job metadata along with the full trace/log content. "+
+			"Useful for debugging job failures and analyzing execution details."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("job_id",
+			mcp.Required(),
+			mcp.Description("Job ID to retrieve logs for (required)"),
+		),
+		mcp.WithNumber("pipeline_id",
+			mcp.Description("Optional: specific pipeline ID for context. If not provided, uses the latest pipeline."),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: branch or tag name for finding the latest pipeline (e.g., 'main', 'develop'). "+
+				"Only used when pipeline_id is not provided."),
+		),
+	)
+
+	s.AddTool(getJobLogTool, handleGetJobLogRequest(appInstance, debugLogger))
+}
+
+// handleGetJobLogRequest handles the get_job_log tool request.
+func handleGetJobLogRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received get_job_log tool request", "args", args)
+
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		opts, err := extractGetJobLogOptions(args, debugLogger)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing get_job_log request", "project_path", projectPath, "opts", opts)
+
+		jobLog, err := appInstance.GetJobLog(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to get job log", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get job log: %v", err)), nil
+		}
+
+		jsonData, err := json.Marshal(jobLog)
+		if err != nil {
+			debugLogger.Error("Failed to marshal job log to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format job log response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved job log", "job_id", opts.JobID, "log_size", jobLog.LogSize)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractGetJobLogOptions extracts and validates options from MCP request arguments.
+func extractGetJobLogOptions(args map[string]any, debugLogger *slog.Logger) (*app.GetJobLogOptions, error) {
+	opts := &app.GetJobLogOptions{}
+
+	// Extract job_id (required)
+	jobIDFloat, ok := args["job_id"].(float64)
+	if !ok {
+		debugLogger.Error("job_id is missing or not a number", "value", args["job_id"])
+		return nil, ErrJobIDRequired
+	}
+	opts.JobID = int64(jobIDFloat)
+
+	if opts.JobID <= 0 {
+		return nil, fmt.Errorf("%w: got %d", ErrJobIDMustBePositive, opts.JobID)
+	}
+
+	// Extract pipeline_id (optional)
+	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
+		pipelineID := int64(pipelineIDFloat)
+		opts.PipelineID = &pipelineID
+	}
+
+	// Extract ref (optional)
+	if ref, ok := args["ref"].(string); ok && ref != "" {
+		opts.Ref = ref
+	}
+
+	return opts, nil
+}
+
+// setupDownloadJobTraceTool creates and registers the download_job_trace tool.
+func setupDownloadJobTraceTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	downloadJobTraceTool := mcp.NewTool("download_job_trace",
+		mcp.WithDescription("Download the complete log/trace for a specific GitLab CI/CD job to a local file. "+
+			"Returns job metadata and file information. "+
+			"Useful for archiving logs, offline analysis, or automation workflows."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("job_id",
+			mcp.Required(),
+			mcp.Description("Job ID to download trace for (required)"),
+		),
+		mcp.WithNumber("pipeline_id",
+			mcp.Description("Optional: specific pipeline ID for context. If not provided, uses the latest pipeline."),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: branch or tag name for finding the latest pipeline (e.g., 'main', 'develop'). "+
+				"Only used when pipeline_id is not provided."),
+		),
+		mcp.WithString("output_path",
+			mcp.Description("Optional: file path to save trace (default: './job_<id>_trace.log'). "+
+				"Parent directories will be created if needed."),
+		),
+	)
+
+	s.AddTool(downloadJobTraceTool, handleDownloadJobTraceRequest(appInstance, debugLogger))
+}
+
+// handleDownloadJobTraceRequest handles the download_job_trace tool request.
+func handleDownloadJobTraceRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received download_job_trace tool request", "args", args)
+
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		opts, err := extractDownloadJobTraceOptions(args, debugLogger)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing download_job_trace request", "project_path", projectPath, "opts", opts)
+
+		result, err := appInstance.DownloadJobTrace(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to download job trace", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to download job trace: %v", err)), nil
+		}
+
+		jsonData, err := json.Marshal(result)
+		if err != nil {
+			debugLogger.Error("Failed to marshal download result to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format download result response"), nil
+		}
+
+		debugLogger.Info("Successfully downloaded job trace",
+			"job_id", opts.JobID,
+			"file_path", result.FilePath,
+			"file_size", result.FileSize)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractDownloadJobTraceOptions extracts and validates options from MCP request arguments.
+func extractDownloadJobTraceOptions(
+	args map[string]any,
+	debugLogger *slog.Logger,
+) (*app.DownloadJobTraceOptions, error) {
+	opts := &app.DownloadJobTraceOptions{}
+
+	// Extract job_id (required)
+	jobIDFloat, ok := args["job_id"].(float64)
+	if !ok {
+		debugLogger.Error("job_id is missing or not a number", "value", args["job_id"])
+		return nil, ErrJobIDRequired
+	}
+	opts.JobID = int64(jobIDFloat)
+
+	if opts.JobID <= 0 {
+		return nil, fmt.Errorf("%w: got %d", ErrJobIDMustBePositive, opts.JobID)
+	}
+
+	// Extract pipeline_id (optional)
+	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
+		pipelineID := int64(pipelineIDFloat)
+		opts.PipelineID = &pipelineID
+	}
+
+	// Extract ref (optional)
+	if ref, ok := args["ref"].(string); ok && ref != "" {
+		opts.Ref = ref
+	}
+
+	// Extract output_path (optional)
+	if outputPath, ok := args["output_path"].(string); ok && outputPath != "" {
+		opts.OutputPath = outputPath
+	}
+
+	return opts, nil
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -1196,6 +1590,10 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupListEpicsTool(s, appInstance, debugLogger)
 	setupCreateEpicTool(s, appInstance, debugLogger)
 	setupAddIssueToEpicTool(s, appInstance, debugLogger)
+	setupGetLatestPipelineTool(s, appInstance, debugLogger)
+	setupListPipelineJobsTool(s, appInstance, debugLogger)
+	setupGetJobLogTool(s, appInstance, debugLogger)
+	setupDownloadJobTraceTool(s, appInstance, debugLogger)
 }
 
 func main() {
