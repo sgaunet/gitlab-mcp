@@ -967,6 +967,116 @@ func extractGetJobLogOptions(args map[string]any, debugLogger *slog.Logger) (*ap
 	return opts, nil
 }
 
+// setupDownloadJobTraceTool creates and registers the download_job_trace tool.
+func setupDownloadJobTraceTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	downloadJobTraceTool := mcp.NewTool("download_job_trace",
+		mcp.WithDescription("Download the complete log/trace for a specific GitLab CI/CD job to a local file. "+
+			"Returns job metadata and file information. "+
+			"Useful for archiving logs, offline analysis, or automation workflows."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("job_id",
+			mcp.Required(),
+			mcp.Description("Job ID to download trace for (required)"),
+		),
+		mcp.WithNumber("pipeline_id",
+			mcp.Description("Optional: specific pipeline ID for context. If not provided, uses the latest pipeline."),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: branch or tag name for finding the latest pipeline (e.g., 'main', 'develop'). "+
+				"Only used when pipeline_id is not provided."),
+		),
+		mcp.WithString("output_path",
+			mcp.Description("Optional: file path to save trace (default: './job_<id>_trace.log'). "+
+				"Parent directories will be created if needed."),
+		),
+	)
+
+	s.AddTool(downloadJobTraceTool, handleDownloadJobTraceRequest(appInstance, debugLogger))
+}
+
+// handleDownloadJobTraceRequest handles the download_job_trace tool request.
+func handleDownloadJobTraceRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received download_job_trace tool request", "args", args)
+
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		opts, err := extractDownloadJobTraceOptions(args, debugLogger)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing download_job_trace request", "project_path", projectPath, "opts", opts)
+
+		result, err := appInstance.DownloadJobTrace(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to download job trace", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to download job trace: %v", err)), nil
+		}
+
+		jsonData, err := json.Marshal(result)
+		if err != nil {
+			debugLogger.Error("Failed to marshal download result to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format download result response"), nil
+		}
+
+		debugLogger.Info("Successfully downloaded job trace",
+			"job_id", opts.JobID,
+			"file_path", result.FilePath,
+			"file_size", result.FileSize)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractDownloadJobTraceOptions extracts and validates options from MCP request arguments.
+func extractDownloadJobTraceOptions(
+	args map[string]any,
+	debugLogger *slog.Logger,
+) (*app.DownloadJobTraceOptions, error) {
+	opts := &app.DownloadJobTraceOptions{}
+
+	// Extract job_id (required)
+	jobIDFloat, ok := args["job_id"].(float64)
+	if !ok {
+		debugLogger.Error("job_id is missing or not a number", "value", args["job_id"])
+		return nil, ErrJobIDRequired
+	}
+	opts.JobID = int64(jobIDFloat)
+
+	if opts.JobID <= 0 {
+		return nil, fmt.Errorf("%w: got %d", ErrJobIDMustBePositive, opts.JobID)
+	}
+
+	// Extract pipeline_id (optional)
+	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
+		pipelineID := int64(pipelineIDFloat)
+		opts.PipelineID = &pipelineID
+	}
+
+	// Extract ref (optional)
+	if ref, ok := args["ref"].(string); ok && ref != "" {
+		opts.Ref = ref
+	}
+
+	// Extract output_path (optional)
+	if outputPath, ok := args["output_path"].(string); ok && outputPath != "" {
+		opts.OutputPath = outputPath
+	}
+
+	return opts, nil
+}
+
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
 func setupAddIssueNoteTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	addIssueNoteTool := mcp.NewTool("add_issue_note",
@@ -1483,6 +1593,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupGetLatestPipelineTool(s, appInstance, debugLogger)
 	setupListPipelineJobsTool(s, appInstance, debugLogger)
 	setupGetJobLogTool(s, appInstance, debugLogger)
+	setupDownloadJobTraceTool(s, appInstance, debugLogger)
 }
 
 func main() {

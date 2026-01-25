@@ -20,6 +20,7 @@ This is a Model Context Protocol (MCP) server that provides GitLab integration t
 - `get_latest_pipeline`: Gets the latest pipeline for a GitLab project with optional ref (branch/tag) filtering
 - `list_pipeline_jobs`: Lists all jobs for a GitLab pipeline with filtering options (status, stage)
 - `get_job_log`: Retrieves complete log output for a specific CI/CD job with job metadata
+- `download_job_trace`: Downloads CI/CD job logs to local files for offline analysis and archiving
 
 ## Architecture
 
@@ -122,6 +123,19 @@ Get the log for job 54321 from the latest pipeline in myorg/myproject
 
 ```
 Get the log for job 11111 from the latest pipeline on develop branch in myorg/myproject
+```
+
+**Downloading job logs:**
+```
+Download the log for job 12345 to a file
+```
+
+```
+Download the log for job 54321 from the latest pipeline to ./logs/job_54321.log
+```
+
+```
+Download the log for job 11111 from the develop branch to /tmp/build.log
 ```
 
 The tool handles the resolution automatically - no need to look up user IDs or milestone IDs manually.

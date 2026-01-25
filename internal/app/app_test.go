@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -3228,6 +3229,268 @@ func TestApp_GetJobLog(t *testing.T) {
 				assert.Equal(t, tt.want.LogSize, result.LogSize)
 			}
 
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+			mockJobs.AssertExpectations(t)
+			mockPipelines.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_DownloadJobTrace(t *testing.T) {
+	testLog := "Build started\nCompiling...\nSuccess!"
+	testTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	tests := []struct {
+		name    string
+		opts    *DownloadJobTraceOptions
+		setup   func(*MockGitLabClient, *MockProjectsService, *MockJobsService, *MockPipelinesService, *testing.T) string
+		verify  func(*DownloadJobTraceResult, string, *testing.T)
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "default output path - happy path",
+			opts: &DownloadJobTraceOptions{
+				JobID:      1001,
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs).Twice()
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedListOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedListOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:        1001,
+							Name:      "build:app",
+							Stage:     "build",
+							Status:    "success",
+							Ref:       "main",
+							WebURL:    "https://gitlab.com/test/project/-/jobs/1001",
+							CreatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				jobs.On("GetTraceFile", int64(123), int64(1001), []gitlab.RequestOptionFunc(nil)).Return(
+					io.NopCloser(strings.NewReader(testLog)), &gitlab.Response{}, nil,
+				)
+
+				return "" // Default path will be used
+			},
+			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {
+				if result.JobID != 1001 {
+					t.Errorf("JobID = %d, want 1001", result.JobID)
+				}
+				if result.JobName != "build:app" {
+					t.Errorf("JobName = %s, want build:app", result.JobName)
+				}
+				if result.Status != "success" {
+					t.Errorf("Status = %s, want success", result.Status)
+				}
+				if result.FileSize != int64(len(testLog)) {
+					t.Errorf("FileSize = %d, want %d", result.FileSize, len(testLog))
+				}
+				if !strings.HasSuffix(result.FilePath, "job_1001_trace.log") {
+					t.Errorf("FilePath = %s, should end with job_1001_trace.log", result.FilePath)
+				}
+
+				// Verify file content
+				content, err := os.ReadFile(result.FilePath)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				if string(content) != testLog {
+					t.Errorf("File content = %s, want %s", content, testLog)
+				}
+
+				// Cleanup
+				os.Remove(result.FilePath)
+			},
+			wantErr: false,
+		},
+		{
+			name: "custom output path - happy path",
+			opts: &DownloadJobTraceOptions{
+				JobID:      2002,
+				PipelineID: func() *int64 { id := int64(99); return &id }(),
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				tempDir := t.TempDir()
+				customPath := filepath.Join(tempDir, "custom_trace.log")
+
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs).Twice()
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedListOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(99), expectedListOpts).Return(
+					[]*gitlab.Job{
+						{
+							ID:        2002,
+							Name:      "test:unit",
+							Stage:     "test",
+							Status:    "failed",
+							Ref:       "develop",
+							WebURL:    "https://gitlab.com/test/project/-/jobs/2002",
+							CreatedAt: &testTime,
+						},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				jobs.On("GetTraceFile", int64(123), int64(2002), []gitlab.RequestOptionFunc(nil)).Return(
+					io.NopCloser(strings.NewReader(testLog)), &gitlab.Response{}, nil,
+				)
+
+				return customPath
+			},
+			verify: func(result *DownloadJobTraceResult, expectedPath string, t *testing.T) {
+				if result.FilePath != expectedPath {
+					t.Errorf("FilePath = %s, want %s", result.FilePath, expectedPath)
+				}
+
+				// Verify file exists and has correct content
+				content, err := os.ReadFile(expectedPath)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				if string(content) != testLog {
+					t.Errorf("File content = %s, want %s", content, testLog)
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil options - error",
+			opts: nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
+			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			wantErr: true,
+			errMsg: "options cannot be nil",
+		},
+		{
+			name: "zero job_id - error",
+			opts: &DownloadJobTraceOptions{
+				JobID: 0,
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
+			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			wantErr: true,
+			errMsg: "job_id must be positive",
+		},
+		{
+			name: "path traversal attempt - error",
+			opts: &DownloadJobTraceOptions{
+				JobID:      7007,
+				OutputPath: "../../etc/passwd",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
+			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			wantErr: true,
+			errMsg: "path traversal attempt detected",
+		},
+		{
+			name: "system directory - error",
+			opts: &DownloadJobTraceOptions{
+				JobID:      8008,
+				OutputPath: "/etc/test.log",
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
+			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			wantErr: true,
+			errMsg: "invalid output path",
+		},
+		{
+			name: "job not found in pipeline - error",
+			opts: &DownloadJobTraceOptions{
+				JobID:      9999,
+				PipelineID: func() *int64 { id := int64(42); return &id }(),
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				tempDir := t.TempDir()
+				customPath := filepath.Join(tempDir, "notfound.log")
+
+				client.On("Projects").Return(projects)
+				client.On("Jobs").Return(jobs)
+
+				projects.On("GetProject", "test/project", (*gitlab.GetProjectOptions)(nil)).Return(
+					&gitlab.Project{ID: 123}, &gitlab.Response{}, nil,
+				)
+
+				expectedListOpts := &gitlab.ListJobsOptions{
+					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+				}
+
+				jobs.On("ListPipelineJobs", int64(123), int64(42), expectedListOpts).Return(
+					[]*gitlab.Job{
+						{ID: 1001, Name: "build:app"},
+					},
+					&gitlab.Response{}, nil,
+				)
+
+				return customPath
+			},
+			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			wantErr: true,
+			errMsg: "job not found in pipeline",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := new(MockGitLabClient)
+			mockProjects := new(MockProjectsService)
+			mockJobs := new(MockJobsService)
+			mockPipelines := new(MockPipelinesService)
+
+			// Setup mocks
+			outputPath := tt.setup(mockClient, mockProjects, mockJobs, mockPipelines, t)
+			if outputPath != "" && tt.opts != nil {
+				tt.opts.OutputPath = outputPath
+			}
+
+			// Create app with mock client
+			appInstance := NewWithClient("test-token", "https://gitlab.com/", mockClient)
+
+			// Execute
+			result, err := appInstance.DownloadJobTrace("test/project", tt.opts)
+
+			// Check error expectations
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("Expected error containing '%s', got nil", tt.errMsg)
+				}
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Error = %v, want error containing '%s'", err, tt.errMsg)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Verify result
+			tt.verify(result, outputPath, t)
+
+			// Verify mock expectations
 			mockClient.AssertExpectations(t)
 			mockProjects.AssertExpectations(t)
 			mockJobs.AssertExpectations(t)

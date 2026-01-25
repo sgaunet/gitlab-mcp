@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,9 @@ var (
 	ErrJobLogOptionsRequired = errors.New("options cannot be nil")
 	ErrInvalidJobID          = errors.New("job_id must be positive")
 	ErrJobNotFoundInPipeline = errors.New("job not found in pipeline")
+	ErrInvalidOutputPath     = errors.New("invalid output path")
+	ErrFileWriteFailed       = errors.New("failed to write trace file")
+	ErrPathTraversalAttempt  = errors.New("path traversal attempt detected")
 )
 
 type App struct {
@@ -338,6 +342,28 @@ type JobLog struct {
 	WebURL     string `json:"web_url"`
 	LogContent string `json:"log_content"`
 	LogSize    int64  `json:"log_size"`
+}
+
+// DownloadJobTraceOptions specifies parameters for downloading a job's trace to a file.
+type DownloadJobTraceOptions struct {
+	JobID      int64  // Required: job ID to download trace for
+	PipelineID *int64 // Optional: pipeline context
+	Ref        string // Optional: branch/tag for latest pipeline lookup
+	OutputPath string // Optional: local file path (defaults to "./job_<id>_trace.log")
+}
+
+// DownloadJobTraceResult represents the result of downloading a job trace to a file.
+type DownloadJobTraceResult struct {
+	JobID      int64  `json:"job_id"`
+	JobName    string `json:"job_name"`
+	Status     string `json:"status"`
+	Stage      string `json:"stage"`
+	Ref        string `json:"ref"`
+	PipelineID int64  `json:"pipeline_id"`
+	WebURL     string `json:"web_url"`
+	FilePath   string `json:"file_path"`   // Absolute path where trace was saved
+	FileSize   int64  `json:"file_size"`   // Size in bytes
+	SavedAt    string `json:"saved_at"`    // ISO 8601 timestamp
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -1325,6 +1351,206 @@ func (a *App) GetJobLog(projectPath string, opts *GetJobLogOptions) (*JobLog, er
 		"log_size", logSize)
 
 	return result, nil
+}
+
+// DownloadJobTrace downloads the trace for a specific GitLab CI/CD job to a local file.
+//
+//nolint:cyclop,funlen // File I/O and validation requires multiple branches
+func (a *App) DownloadJobTrace(projectPath string, opts *DownloadJobTraceOptions) (*DownloadJobTraceResult, error) {
+	// Step 1: Validate options
+	if opts == nil {
+		return nil, ErrJobLogOptionsRequired
+	}
+	if opts.JobID <= 0 {
+		return nil, ErrInvalidJobID
+	}
+
+	// Set default output path if empty
+	outputPath := opts.OutputPath
+	if outputPath == "" {
+		outputPath = fmt.Sprintf("./job_%d_trace.log", opts.JobID)
+	}
+
+	// Step 2: Validate and sanitize output path
+	validatedPath, err := a.validateOutputPath(outputPath)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Debug("Downloading job trace",
+		"job_id", opts.JobID,
+		"output_path", validatedPath,
+		"pipeline_id", opts.PipelineID,
+		"ref", opts.Ref)
+
+	// Step 3: Resolve project path to project ID
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
+	}
+	projectID := project.ID
+
+	// Step 4: Resolve pipeline ID (explicit or latest)
+	var pipelineID int64
+	if opts.PipelineID != nil {
+		pipelineID = *opts.PipelineID
+		a.logger.Debug("Using explicit pipeline ID", "pipeline_id", pipelineID)
+	} else {
+		// Use GetLatestPipeline helper
+		latestOpts := &GetLatestPipelineOptions{}
+		if opts.Ref != "" {
+			latestOpts.Ref = opts.Ref
+		}
+		pipeline, err := a.GetLatestPipeline(projectPath, latestOpts)
+		if err != nil {
+			a.logger.Error("Failed to get latest pipeline", "error", err, "project_path", projectPath)
+			return nil, fmt.Errorf("failed to get latest pipeline: %w", err)
+		}
+		pipelineID = pipeline.ID
+		a.logger.Debug("Using latest pipeline ID", "pipeline_id", pipelineID, "ref", latestOpts.Ref)
+	}
+
+	// Step 5: List all jobs for the pipeline
+	listJobOpts := &gitlab.ListJobsOptions{
+		ListOptions: gitlab.ListOptions{
+			PerPage: maxJobsPerPage,
+			Page:    1,
+		},
+	}
+
+	jobs, _, err := a.client.Jobs().ListPipelineJobs(projectID, pipelineID, listJobOpts)
+	if err != nil {
+		a.logger.Error("Failed to list pipeline jobs", "error", err, "pipeline_id", pipelineID)
+		return nil, fmt.Errorf("failed to list jobs for pipeline %d: %w", pipelineID, err)
+	}
+
+	// Step 6: Find the target job
+	var targetJob *gitlab.Job
+	for _, job := range jobs {
+		if job.ID == opts.JobID {
+			targetJob = job
+			break
+		}
+	}
+
+	if targetJob == nil {
+		a.logger.Error("Job not found in pipeline", "job_id", opts.JobID, "pipeline_id", pipelineID)
+		return nil, fmt.Errorf("%w: job %d in pipeline %d", ErrJobNotFoundInPipeline, opts.JobID, pipelineID)
+	}
+
+	a.logger.Debug("Found target job", "job_id", targetJob.ID, "job_name", targetJob.Name, "status", targetJob.Status)
+
+	// Step 7: Get the job trace
+	trace, _, err := a.client.Jobs().GetTraceFile(projectID, opts.JobID)
+	if err != nil {
+		a.logger.Error("Failed to get job trace", "error", err, "job_id", opts.JobID)
+		return nil, fmt.Errorf("failed to get trace for job %d: %w", opts.JobID, err)
+	}
+
+	// Step 8: Write trace to file atomically
+	written, err := a.writeTraceToFile(validatedPath, trace)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Info("Successfully downloaded job trace",
+		"job_id", opts.JobID,
+		"job_name", targetJob.Name,
+		"pipeline_id", pipelineID,
+		"file_path", validatedPath,
+		"file_size", written)
+
+	// Step 9: Return result
+	return &DownloadJobTraceResult{
+		JobID:      targetJob.ID,
+		JobName:    targetJob.Name,
+		Status:     targetJob.Status,
+		Stage:      targetJob.Stage,
+		Ref:        targetJob.Ref,
+		PipelineID: pipelineID,
+		WebURL:     targetJob.WebURL,
+		FilePath:   validatedPath,
+		FileSize:   written,
+		SavedAt:    time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+	}, nil
+}
+
+// validateOutputPath validates and sanitizes the output path for trace files.
+func (a *App) validateOutputPath(outputPath string) (string, error) {
+	// Check for path traversal patterns in the original input
+	if strings.Contains(outputPath, "..") {
+		return "", fmt.Errorf("%w: path contains '..'", ErrPathTraversalAttempt)
+	}
+
+	// Resolve to absolute path
+	absPath, err := filepath.Abs(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("%w: cannot resolve path: %w", ErrInvalidOutputPath, err)
+	}
+
+	// Clean the path
+	cleanPath := filepath.Clean(absPath)
+
+	// Block system directories
+	systemDirs := []string{"/etc", "/usr", "/bin", "/sbin", "/boot", "/sys", "/proc"}
+	for _, sysDir := range systemDirs {
+		if strings.HasPrefix(cleanPath, sysDir+"/") || cleanPath == sysDir {
+			return "", fmt.Errorf("%w: cannot write to system directory %s", ErrInvalidOutputPath, sysDir)
+		}
+	}
+
+	// Create parent directories if they don't exist
+	parentDir := filepath.Dir(cleanPath)
+	//nolint:gosec,mnd // G301: 0755 is appropriate for log file directories
+	if err := os.MkdirAll(parentDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory %s: %w", parentDir, err)
+	}
+
+	return cleanPath, nil
+}
+
+// writeTraceToFile writes the trace content to a file atomically.
+func (a *App) writeTraceToFile(filePath string, trace io.Reader) (int64, error) {
+	// Create temp file in same directory for atomic write
+	parentDir := filepath.Dir(filePath)
+	tempFile, err := os.CreateTemp(parentDir, ".job_trace_*.tmp")
+	if err != nil {
+		return 0, fmt.Errorf("%w: cannot create temp file: %w", ErrFileWriteFailed, err)
+	}
+	tempPath := tempFile.Name()
+
+	// Ensure cleanup on error
+	var written int64
+	defer func() {
+		_ = tempFile.Close() // Cleanup in defer
+		if err != nil {
+			_ = os.Remove(tempPath) // Best effort cleanup
+		}
+	}()
+
+	// Write trace to temp file
+	written, err = io.Copy(tempFile, trace)
+	if err != nil {
+		return 0, fmt.Errorf("%w: write error: %w", ErrFileWriteFailed, err)
+	}
+
+	// Sync to disk
+	if err = tempFile.Sync(); err != nil {
+		return 0, fmt.Errorf("%w: sync error: %w", ErrFileWriteFailed, err)
+	}
+
+	// Close temp file before rename
+	if err = tempFile.Close(); err != nil {
+		return 0, fmt.Errorf("%w: close error: %w", ErrFileWriteFailed, err)
+	}
+
+	// Atomic rename
+	if err = os.Rename(tempPath, filePath); err != nil {
+		return 0, fmt.Errorf("%w: rename error: %w", ErrFileWriteFailed, err)
+	}
+
+	return written, nil
 }
 
 // parseDate parses a date string in YYYY-MM-DD format to gitlab.ISOTime.
