@@ -17,6 +17,9 @@ This is a Model Context Protocol (MCP) server that provides GitLab integration t
 - `update_project_topics`: Updates the topics/tags of a GitLab project (replaces all existing topics)
 - `list_epics`: Lists epics for a GitLab group (Premium/Ultimate tier)
 - `create_epic`: Creates new epics in a GitLab group with title, description, labels, dates, and confidentiality (Premium/Ultimate tier)
+- `get_latest_pipeline`: Gets the latest pipeline for a GitLab project with optional ref (branch/tag) filtering
+- `list_pipeline_jobs`: Lists all jobs for a GitLab pipeline with filtering options (status, stage)
+- `get_job_log`: Retrieves complete log output for a specific CI/CD job with job metadata
 
 ## Architecture
 
@@ -90,6 +93,35 @@ Create an epic in myorg group with title "Q1 2024 Launch"
 
 ```
 Create an epic in myorg/platform group with title "Authentication Redesign", description "Modernize auth with OAuth2 and JWT", labels ["security", "high-priority"], start date "2024-03-01", due date "2024-06-30", and make it confidential
+```
+
+**Debugging CI/CD pipelines:**
+```
+Get the latest pipeline for myorg/myproject
+```
+
+```
+List all jobs for the latest pipeline in myorg/myproject
+```
+
+```
+List only failed jobs for the latest pipeline on the main branch in myorg/myproject
+```
+
+```
+List failed jobs in the test stage for pipeline ID 12345 in myorg/myproject
+```
+
+```
+Get the log for job 12345 in pipeline 999 in myorg/myproject
+```
+
+```
+Get the log for job 54321 from the latest pipeline in myorg/myproject
+```
+
+```
+Get the log for job 11111 from the latest pipeline on develop branch in myorg/myproject
 ```
 
 The tool handles the resolution automatically - no need to look up user IDs or milestone IDs manually.
@@ -223,9 +255,11 @@ Unit tests provide comprehensive coverage of all functionality:
 - `UpdateProjectIssue`: Issue updates with partial/full updates, state changes, and validation
 - `AddIssueNote`: Note creation with body validation, project resolution, and API error handling
 - `ListProjectLabels`: Label retrieval with optional filtering, search, and counts
+- `GetLatestPipeline`: Pipeline retrieval with ref filtering and error scenarios
+- `ListPipelineJobs`: Job listing with pipeline ID resolution, status/stage filtering, and comprehensive error handling
 - Edge cases: nil parameters, empty values, API errors, project not found, invalid issue IIDs
 
-All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **74.5%**.
+All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **69.1%**.
 
 ## Adding New Tools
 

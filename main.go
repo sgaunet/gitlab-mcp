@@ -32,6 +32,9 @@ var (
 	ErrProjectPathRequired          = errors.New("project_path is required and must be a non-empty string")
 	ErrIssueIIDRequired             = errors.New("issue_iid is required and must be a number")
 	ErrIssueIIDMustBePositive       = errors.New("issue_iid must be greater than 0")
+	ErrInvalidJobStatus             = errors.New("invalid job status")
+	ErrJobIDRequired                = errors.New("job_id must be a number")
+	ErrJobIDMustBePositive          = errors.New("job_id must be positive")
 )
 
 // setupListIssuesTool creates and registers the list_issues tool.
@@ -817,7 +820,12 @@ func handleListPipelineJobsRequest(
 }
 
 // extractListPipelineJobsOptions extracts and validates options from MCP request arguments.
-func extractListPipelineJobsOptions(args map[string]any, debugLogger *slog.Logger) (*app.ListPipelineJobsOptions, error) {
+//
+//nolint:cyclop // Option extraction and validation requires multiple branches
+func extractListPipelineJobsOptions(
+	args map[string]any,
+	debugLogger *slog.Logger,
+) (*app.ListPipelineJobsOptions, error) {
 	opts := &app.ListPipelineJobsOptions{}
 
 	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
@@ -835,7 +843,10 @@ func extractListPipelineJobsOptions(args map[string]any, debugLogger *slog.Logge
 			if statusStr, ok := s.(string); ok {
 				if !isValidJobStatus(statusStr) {
 					debugLogger.Warn("Invalid job status in scope", "status", statusStr)
-					return nil, fmt.Errorf("invalid job status '%s'. Valid: created, pending, running, success, failed, canceled, skipped, manual, scheduled", statusStr)
+					return nil, fmt.Errorf(
+						"%w: '%s'. Valid: created, pending, running, success, failed, canceled, skipped, manual, scheduled",
+						ErrInvalidJobStatus, statusStr,
+					)
 				}
 				scopes = append(scopes, statusStr)
 			}
@@ -859,6 +870,101 @@ func isValidJobStatus(status string) bool {
 		"manual": true, "scheduled": true,
 	}
 	return validStatuses[status]
+}
+
+// setupGetJobLogTool creates and registers the get_job_log tool.
+func setupGetJobLogTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	getJobLogTool := mcp.NewTool("get_job_log",
+		mcp.WithDescription("Retrieve complete log output for a specific GitLab CI/CD job. "+
+			"Returns job metadata along with the full trace/log content. "+
+			"Useful for debugging job failures and analyzing execution details."),
+		mcp.WithString("project_path",
+			mcp.Required(),
+			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name')"),
+		),
+		mcp.WithNumber("job_id",
+			mcp.Required(),
+			mcp.Description("Job ID to retrieve logs for (required)"),
+		),
+		mcp.WithNumber("pipeline_id",
+			mcp.Description("Optional: specific pipeline ID for context. If not provided, uses the latest pipeline."),
+		),
+		mcp.WithString("ref",
+			mcp.Description("Optional: branch or tag name for finding the latest pipeline (e.g., 'main', 'develop'). "+
+				"Only used when pipeline_id is not provided."),
+		),
+	)
+
+	s.AddTool(getJobLogTool, handleGetJobLogRequest(appInstance, debugLogger))
+}
+
+// handleGetJobLogRequest handles the get_job_log tool request.
+func handleGetJobLogRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received get_job_log tool request", "args", args)
+
+		projectPath, ok := args["project_path"].(string)
+		if !ok || projectPath == "" {
+			debugLogger.Error("project_path is not a valid string", "value", args["project_path"])
+			return mcp.NewToolResultError("project_path must be a non-empty string"), nil
+		}
+
+		opts, err := extractGetJobLogOptions(args, debugLogger)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		debugLogger.Debug("Processing get_job_log request", "project_path", projectPath, "opts", opts)
+
+		jobLog, err := appInstance.GetJobLog(projectPath, opts)
+		if err != nil {
+			debugLogger.Error("Failed to get job log", "error", err, "project_path", projectPath)
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get job log: %v", err)), nil
+		}
+
+		jsonData, err := json.Marshal(jobLog)
+		if err != nil {
+			debugLogger.Error("Failed to marshal job log to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format job log response"), nil
+		}
+
+		debugLogger.Info("Successfully retrieved job log", "job_id", opts.JobID, "log_size", jobLog.LogSize)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// extractGetJobLogOptions extracts and validates options from MCP request arguments.
+func extractGetJobLogOptions(args map[string]any, debugLogger *slog.Logger) (*app.GetJobLogOptions, error) {
+	opts := &app.GetJobLogOptions{}
+
+	// Extract job_id (required)
+	jobIDFloat, ok := args["job_id"].(float64)
+	if !ok {
+		debugLogger.Error("job_id is missing or not a number", "value", args["job_id"])
+		return nil, ErrJobIDRequired
+	}
+	opts.JobID = int64(jobIDFloat)
+
+	if opts.JobID <= 0 {
+		return nil, fmt.Errorf("%w: got %d", ErrJobIDMustBePositive, opts.JobID)
+	}
+
+	// Extract pipeline_id (optional)
+	if pipelineIDFloat, ok := args["pipeline_id"].(float64); ok {
+		pipelineID := int64(pipelineIDFloat)
+		opts.PipelineID = &pipelineID
+	}
+
+	// Extract ref (optional)
+	if ref, ok := args["ref"].(string); ok && ref != "" {
+		opts.Ref = ref
+	}
+
+	return opts, nil
 }
 
 // setupAddIssueNoteTool creates and registers the add_issue_note tool.
@@ -1376,6 +1482,7 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 	setupAddIssueToEpicTool(s, appInstance, debugLogger)
 	setupGetLatestPipelineTool(s, appInstance, debugLogger)
 	setupListPipelineJobsTool(s, appInstance, debugLogger)
+	setupGetJobLogTool(s, appInstance, debugLogger)
 }
 
 func main() {

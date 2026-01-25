@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
@@ -69,6 +71,11 @@ type JobsService interface {
 		pipelineID int64,
 		opt *gitlab.ListJobsOptions,
 	) ([]*gitlab.Job, *gitlab.Response, error)
+	GetTraceFile(
+		pid any,
+		jobID int64,
+		options ...gitlab.RequestOptionFunc,
+	) (io.Reader, *gitlab.Response, error)
 }
 
 // GitLabClient interface that provides access to all GitLab services.

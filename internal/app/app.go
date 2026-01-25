@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -20,6 +21,7 @@ const (
 	defaultStateOpened = "opened"
 	maxIssuesPerPage   = 100
 	maxLabelsPerPage   = 100
+	maxJobsPerPage     = 100
 )
 
 // Error variables for static errors.
@@ -39,6 +41,9 @@ var (
 	ErrGroupPathRequired     = errors.New("group path is required")
 	ErrIssueNotFound         = errors.New("issue not found")
 	ErrNoPipelinesFound      = errors.New("no pipelines found")
+	ErrJobLogOptionsRequired = errors.New("options cannot be nil")
+	ErrInvalidJobID          = errors.New("job_id must be positive")
+	ErrJobNotFoundInPipeline = errors.New("job not found in pipeline")
 )
 
 type App struct {
@@ -313,6 +318,26 @@ type ListPipelineJobsOptions struct {
 	Ref        string   // Optional: branch/tag for finding latest pipeline
 	Scope      []string // Optional: filter by job status (API-side)
 	Stage      string   // Optional: filter by stage name (client-side)
+}
+
+// GetJobLogOptions specifies parameters for retrieving a job's log.
+type GetJobLogOptions struct {
+	JobID      int64  // Required: job ID to retrieve logs for
+	PipelineID *int64 // Optional: pipeline context
+	Ref        string // Optional: branch/tag for latest pipeline lookup
+}
+
+// JobLog represents the log output from a GitLab CI/CD job.
+type JobLog struct {
+	JobID      int64  `json:"job_id"`
+	JobName    string `json:"job_name"`
+	Status     string `json:"status"`
+	Stage      string `json:"stage"`
+	Ref        string `json:"ref"`
+	PipelineID int64  `json:"pipeline_id"`
+	WebURL     string `json:"web_url"`
+	LogContent string `json:"log_content"`
+	LogSize    int64  `json:"log_size"`
 }
 
 // parseLabels splits comma-separated labels and trims spaces.
@@ -1081,6 +1106,8 @@ func (a *App) GetLatestPipeline(projectPath string, opts *GetLatestPipelineOptio
 }
 
 // ListPipelineJobs retrieves all jobs for a pipeline with optional filtering.
+//
+//nolint:cyclop,funlen // Complex pipeline resolution and filtering logic requires multiple branches and statements
 func (a *App) ListPipelineJobs(projectPath string, opts *ListPipelineJobsOptions) ([]PipelineJob, error) {
 	a.logger.Debug("Listing pipeline jobs for project", "project_path", projectPath, "options", opts)
 
@@ -1113,7 +1140,7 @@ func (a *App) ListPipelineJobs(projectPath string, opts *ListPipelineJobsOptions
 
 	// Step 3: Build GitLab API options
 	listOpts := &gitlab.ListJobsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
+		ListOptions: gitlab.ListOptions{PerPage: maxJobsPerPage, Page: 1},
 	}
 
 	if opts != nil && len(opts.Scope) > 0 {
@@ -1184,6 +1211,120 @@ func convertGitLabJob(job *gitlab.Job) PipelineJob {
 	}
 
 	return result
+}
+
+// GetJobLog retrieves the complete log output for a specific GitLab CI/CD job.
+//
+//nolint:cyclop,funlen // Complex pipeline/job resolution logic requires multiple branches and statements
+func (a *App) GetJobLog(projectPath string, opts *GetJobLogOptions) (*JobLog, error) {
+	a.logger.Debug("Getting job log for project", "project_path", projectPath, "options", opts)
+
+	// Step 1: Validate options
+	if opts == nil {
+		a.logger.Error("Options cannot be nil")
+		return nil, ErrJobLogOptionsRequired
+	}
+
+	if opts.JobID <= 0 {
+		a.logger.Error("Invalid job ID", "job_id", opts.JobID)
+		return nil, fmt.Errorf("%w: got %d", ErrInvalidJobID, opts.JobID)
+	}
+
+	// Step 2: Resolve project path to ID
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
+	}
+	projectID := project.ID
+
+	// Step 3: Resolve pipeline ID (if not provided, get latest)
+	var pipelineID int64
+	if opts.PipelineID != nil {
+		pipelineID = *opts.PipelineID
+		a.logger.Debug("Using explicit pipeline ID", "pipeline_id", pipelineID)
+	} else {
+		latestOpts := &GetLatestPipelineOptions{}
+		if opts.Ref != "" {
+			latestOpts.Ref = opts.Ref
+		}
+		pipeline, err := a.GetLatestPipeline(projectPath, latestOpts)
+		if err != nil {
+			a.logger.Error("Failed to get latest pipeline", "error", err, "project_path", projectPath)
+			return nil, fmt.Errorf("failed to get latest pipeline: %w", err)
+		}
+		pipelineID = pipeline.ID
+		a.logger.Debug("Using latest pipeline ID", "pipeline_id", pipelineID, "ref", latestOpts.Ref)
+	}
+
+	// Step 4: List jobs to get metadata for the target job
+	listOpts := &gitlab.ListJobsOptions{
+		ListOptions: gitlab.ListOptions{PerPage: maxJobsPerPage, Page: 1},
+	}
+
+	jobs, _, err := a.client.Jobs().ListPipelineJobs(projectID, pipelineID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to list pipeline jobs", "error", err, "pipeline_id", pipelineID)
+		return nil, fmt.Errorf("failed to list pipeline jobs for pipeline %d: %w", pipelineID, err)
+	}
+
+	a.logger.Debug("Retrieved jobs from API", "count", len(jobs), "pipeline_id", pipelineID)
+
+	// Step 5: Find the target job in the list
+	var targetJob *gitlab.Job
+	for _, job := range jobs {
+		if job.ID == opts.JobID {
+			targetJob = job
+			break
+		}
+	}
+
+	if targetJob == nil {
+		a.logger.Error("Job not found in pipeline", "job_id", opts.JobID, "pipeline_id", pipelineID)
+		return nil, fmt.Errorf("%w: job %d in pipeline %d", ErrJobNotFoundInPipeline, opts.JobID, pipelineID)
+	}
+
+	a.logger.Debug("Found target job", "job_id", targetJob.ID, "job_name", targetJob.Name, "status", targetJob.Status)
+
+	// Step 6: Retrieve trace file
+	trace, _, err := a.client.Jobs().GetTraceFile(projectID, opts.JobID)
+	if err != nil {
+		a.logger.Error("Failed to get job trace", "error", err, "job_id", opts.JobID)
+		return nil, fmt.Errorf("failed to get trace for job %d: %w", opts.JobID, err)
+	}
+
+	// Step 7: Convert io.Reader to string
+	logBytes, err := io.ReadAll(trace)
+	if err != nil {
+		a.logger.Error("Failed to read trace content", "error", err, "job_id", opts.JobID)
+		return nil, fmt.Errorf("failed to read trace content for job %d: %w", opts.JobID, err)
+	}
+
+	logContent := string(logBytes)
+	logSize := int64(len(logBytes))
+
+	a.logger.Debug("Successfully retrieved job log", "job_id", opts.JobID, "log_size", logSize)
+
+	// Step 8: Return JobLog struct
+	result := &JobLog{
+		JobID:      targetJob.ID,
+		JobName:    targetJob.Name,
+		Status:     targetJob.Status,
+		Stage:      targetJob.Stage,
+		Ref:        targetJob.Ref,
+		PipelineID: pipelineID,
+		WebURL:     targetJob.WebURL,
+		LogContent: logContent,
+		LogSize:    logSize,
+	}
+
+	a.logger.Info("Successfully retrieved job log",
+		"job_id", opts.JobID,
+		"job_name", targetJob.Name,
+		"pipeline_id", pipelineID,
+		"log_size", logSize)
+
+	return result, nil
 }
 
 // parseDate parses a date string in YYYY-MM-DD format to gitlab.ISOTime.

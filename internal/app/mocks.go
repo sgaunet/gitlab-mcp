@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+
 	"github.com/stretchr/testify/mock"
 	"gitlab.com/gitlab-org/api/client-go"
 )
@@ -287,4 +289,15 @@ func (m *MockJobsService) ListPipelineJobs(
 	jobs, _ := args.Get(0).([]*gitlab.Job)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return jobs, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockJobsService) GetTraceFile(
+	pid any,
+	jobID int64,
+	options ...gitlab.RequestOptionFunc,
+) (io.Reader, *gitlab.Response, error) {
+	args := m.Called(pid, jobID, options)
+	reader, _ := args.Get(0).(io.Reader)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return reader, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

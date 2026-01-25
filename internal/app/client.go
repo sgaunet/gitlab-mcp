@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 
 	"gitlab.com/gitlab-org/api/client-go"
 )
@@ -289,4 +290,16 @@ func (j *JobsServiceWrapper) ListPipelineJobs(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return jobs, resp, nil
+}
+
+func (j *JobsServiceWrapper) GetTraceFile(
+	pid any,
+	jobID int64,
+	options ...gitlab.RequestOptionFunc,
+) (io.Reader, *gitlab.Response, error) {
+	trace, resp, err := j.service.GetTraceFile(pid, jobID, options...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return trace, resp, nil
 }
