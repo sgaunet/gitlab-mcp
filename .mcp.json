@@ -1,0 +1,18 @@
+{
+	"mcpServers": {
+		"docker-gitlab-mcp-server": {
+			"type": "stdio",
+			"command": "docker",
+			"args": [
+				"run",
+				"--rm",
+				"-i",
+				"--env-file",
+				".env",
+				"--name",
+				"gitlab-mcp-server",
+				"ghcr.io/sgaunet/gitlab-mcp:latest"
+			]
+		}
+	}
+}

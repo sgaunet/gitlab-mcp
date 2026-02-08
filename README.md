@@ -32,8 +32,9 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 
 - Go 1.21 or later
 - [Task](https://taskfile.dev/) for build automation
-- Claude Code CLI
+- Claude Code CLI (or any MCP-compatible client)
 - Access to GitLab repositories
+- GitLab personal access token with appropriate scopes (`api`, `read_api`, `write_api`)
 
 ## Installation
 
@@ -89,6 +90,10 @@ brew install sgaunet/tools/gitlab-mcp
    sudo mv gitlab-mcp /usr/local/bin/
    ```
 
+### Option 4: Run with Docker (No installation required)
+
+The GitLab MCP server is available as a Docker image for easy deployment without installing Go or the binary directly. See the [Docker section below](#run-with-docker) for instructions.
+
 ### Configuration
 
 The MCP server requires a GitLab personal access token (PAT) with appropriate scopes (e.g., `api`, `read_api`, `write_api`) to interact with the GitLab API.
@@ -125,6 +130,174 @@ claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
 
 # If installed elsewhere, adjust the path accordingly
 claude mcp add gitlab-mcp -s user -- /path/to/gitlab-mcp
+```
+
+### Run with Docker
+
+The GitLab MCP server is available as a Docker image for containerized deployments. This is useful for:
+- Containerized development environments
+- CI/CD scenarios
+- Dependency isolation
+- Easy deployment without Go installation
+
+#### Using Pre-built Docker Image
+
+The latest Docker images are available on GitHub Container Registry:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/sgaunet/gitlab-mcp:latest
+
+# Run with required environment variables
+docker run --rm -i \
+  -e GITLAB_TOKEN=your_personal_access_token \
+  ghcr.io/sgaunet/gitlab-mcp:latest
+
+# For self-hosted GitLab instances
+docker run --rm -i \
+  -e GITLAB_TOKEN=your_personal_access_token \
+  -e GITLAB_URI=https://your.gitlab.instance \
+  ghcr.io/sgaunet/gitlab-mcp:latest
+
+# With label validation disabled
+docker run --rm -i \
+  -e GITLAB_TOKEN=your_personal_access_token \
+  -e GITLAB_VALIDATE_LABELS=false \
+  ghcr.io/sgaunet/gitlab-mcp:latest
+```
+
+Available tags:
+- `latest` - Latest stable release
+- `0.9.1` - Specific version (replace with desired version)
+
+#### Configure Claude Code to Use Docker
+
+Add the Docker-based MCP server to Claude Code:
+
+```bash
+# Using environment variable from shell
+claude mcp add gitlab-mcp-docker -s user -- \
+  docker run --rm -i \
+  -e GITLAB_TOKEN=${GITLAB_TOKEN} \
+  ghcr.io/sgaunet/gitlab-mcp:latest
+
+# With explicit token (not recommended for security)
+claude mcp add gitlab-mcp-docker -s user -- \
+  docker run --rm -i \
+  -e GITLAB_TOKEN=your_token_here \
+  ghcr.io/sgaunet/gitlab-mcp:latest
+```
+
+Or configure directly in `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "gitlab-mcp-docker": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "GITLAB_TOKEN=your_personal_access_token",
+        "--name",
+        "gitlab-mcp-server",
+        "ghcr.io/sgaunet/gitlab-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**Security Note:** Store your GitLab token securely. Consider using environment variables or secret management tools instead of hardcoding tokens in configuration files.
+
+#### Docker Compose Example
+
+For more complex setups, use Docker Compose:
+
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  gitlab-mcp:
+    image: ghcr.io/sgaunet/gitlab-mcp:latest
+    container_name: gitlab-mcp-server
+    stdin_open: true
+    tty: true
+    env-file: .env
+    restart: unless-stopped
+```
+
+Create `.env` file with your credentials:
+
+```bash
+GITLAB_TOKEN=your_personal_access_token
+GITLAB_URI=https://gitlab.com/
+GITLAB_VALIDATE_LABELS=true
+```
+
+Run with Docker Compose:
+
+```bash
+# Start the service
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the service
+docker-compose down
+```
+
+**Note:** While Docker Compose is useful for managing containers, Claude Code expects stdio communication. For Claude Code integration, use the direct `docker run` approach or `.mcp.json` configuration shown above.
+
+```json
+{
+	"mcpServers": {
+		"docker-gitlab-mcp-server": {
+			"type": "stdio",
+			"command": "docker",
+			"args": [
+				"run",
+				"--rm",
+				"-i",
+				"--env-file",
+				".env",
+				"--name",
+				"gitlab-mcp-server",
+				"ghcr.io/sgaunet/gitlab-mcp:0.9.1"
+			]
+		}
+	}
+}
+```
+
+.env file example:
+
+```
+# GitLab MCP Server Environment Variables
+
+# Required: GitLab Personal Access Token
+# Scopes needed: api, read_api, write_api
+# Create at: https://gitlab.com/-/user_settings/personal_access_tokens
+GITLAB_TOKEN=your_personal_access_token_here
+
+# Optional: GitLab Instance URI (defaults to https://gitlab.com/)
+# For self-hosted instances, set to your GitLab URL
+GITLAB_URI=https://gitlab.com/
+
+# Optional: Label Validation (defaults to true)
+# true: Validates labels exist before creating issues
+# false: Allows non-existent labels (GitLab's default behavior)
+GITLAB_VALIDATE_LABELS=true
+```
+
+Don't forget to add `.env` to your `.gitignore` to avoid accidentally committing sensitive information.
+
+```bash
+echo ".env" >> .gitignore
 ```
 
 ## Usage
