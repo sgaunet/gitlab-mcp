@@ -5,3 +5,4 @@
 *vault*
 /.coverdata
 /.taskmaster
+.env

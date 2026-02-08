@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  gitlab-mcp:
+    image: ghcr.io/sgaunet/gitlab-mcp:latest
+    container_name: gitlab-mcp-server
+    stdin_open: true
+    tty: true
+    environment:
+      # Required: GitLab Personal Access Token
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+
+      # Optional: GitLab instance URI (defaults to https://gitlab.com/)
+      - GITLAB_URI=${GITLAB_URI:-https://gitlab.com/}
+
+      # Optional: Label validation (defaults to true)
+      - GITLAB_VALIDATE_LABELS=${GITLAB_VALIDATE_LABELS:-true}
+
+    # Uncomment to prevent container from restarting
+    # restart: unless-stopped
