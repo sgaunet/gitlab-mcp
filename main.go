@@ -9,6 +9,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -22,6 +23,15 @@ var version = "dev"
 const (
 	defaultLimit = 100
 )
+
+// ToolCategoryFlags controls which tool categories are enabled.
+type ToolCategoryFlags struct {
+	Issues          bool // Issue management tools
+	Labels          bool // Label management tools
+	ProjectMetadata bool // Project metadata tools
+	Epics           bool // Epic management tools (Premium/Ultimate tier)
+	Pipelines       bool // CI/CD pipeline tools
+}
 
 // Error variables for static errors.
 var (
@@ -1385,13 +1395,21 @@ OPTIONS:
     -h, --help     Show this help message
     -v, --version  Show version information
 
+    Tool category flags (specify to disable categories):
+      --no-issues          Disable issue management tools
+      --no-labels          Disable label management tools
+      --no-project-metadata
+                           Disable project metadata tools
+      --no-epics           Disable epic management tools
+      --no-pipelines       Disable CI/CD pipeline tools
+
 ENVIRONMENT VARIABLES:
     GITLAB_TOKEN   GitLab API personal access token (required)
     GITLAB_URI     GitLab instance URI (default: https://gitlab.com/)
 
 DESCRIPTION:
     This MCP server provides the following tools for GitLab integration:
-    
+
     • list_issues              - List issues for a GitLab project
     • create_issues            - Create new issues with metadata
     • update_issues            - Update existing issues
@@ -1409,12 +1427,18 @@ DESCRIPTION:
     to be used with Claude Code's MCP architecture.
 
 EXAMPLES:
-    # Start the MCP server (typically called by Claude Code)
+    # Start with all tools (default)
     gitlab-mcp
-    
+
+    # Disable epics and labels
+    gitlab-mcp --no-epics --no-labels
+
+    # Enable only issues and project metadata
+    gitlab-mcp --no-labels --no-epics --no-pipelines
+
     # Show help
     gitlab-mcp -h
-    
+
     # Show version
     gitlab-mcp -v
 
@@ -1423,12 +1447,19 @@ For more information, visit: https://github.com/sgaunet/gitlab-mcp
 }
 
 // handleCommandLineFlags processes command line arguments and exits if necessary.
-func handleCommandLineFlags() {
+func handleCommandLineFlags() *ToolCategoryFlags {
 	var (
 		showHelp        = flag.Bool("h", false, "Show help message")
 		showHelpLong    = flag.Bool("help", false, "Show help message")
 		showVersion     = flag.Bool("v", false, "Show version information")
 		showVersionLong = flag.Bool("version", false, "Show version information")
+
+		// Tool category flags (all default false = don't disable)
+		noIssues          = flag.Bool("no-issues", false, "Disable issue management tools")
+		noLabels          = flag.Bool("no-labels", false, "Disable label management tools")
+		noProjectMetadata = flag.Bool("no-project-metadata", false, "Disable project metadata tools")
+		noEpics           = flag.Bool("no-epics", false, "Disable epic management tools")
+		noPipelines       = flag.Bool("no-pipelines", false, "Disable CI/CD pipeline tools")
 	)
 
 	flag.Parse()
@@ -1443,6 +1474,15 @@ func handleCommandLineFlags() {
 	if *showVersion || *showVersionLong {
 		fmt.Printf("%s\n", version)
 		os.Exit(0)
+	}
+
+	// Return configuration with inverted logic (flags are negative)
+	return &ToolCategoryFlags{
+		Issues:          !*noIssues,
+		Labels:          !*noLabels,
+		ProjectMetadata: !*noProjectMetadata,
+		Epics:           !*noEpics,
+		Pipelines:       !*noPipelines,
 	}
 }
 
@@ -1591,27 +1631,93 @@ func extractStringArray(raw []any) []string {
 	return result
 }
 
-func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
-	setupListIssuesTool(s, appInstance, debugLogger)
-	setupCreateIssueTool(s, appInstance, debugLogger)
-	setupUpdateIssueTool(s, appInstance, debugLogger)
-	setupListLabelsTool(s, appInstance, debugLogger)
-	setupAddIssueNoteTool(s, appInstance, debugLogger)
-	setupGetProjectDescriptionTool(s, appInstance, debugLogger)
-	setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)
-	setupGetProjectTopicsTool(s, appInstance, debugLogger)
-	setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
-	setupListEpicsTool(s, appInstance, debugLogger)
-	setupCreateEpicTool(s, appInstance, debugLogger)
-	setupAddIssueToEpicTool(s, appInstance, debugLogger)
-	setupGetLatestPipelineTool(s, appInstance, debugLogger)
-	setupListPipelineJobsTool(s, appInstance, debugLogger)
-	setupGetJobLogTool(s, appInstance, debugLogger)
-	setupDownloadJobTraceTool(s, appInstance, debugLogger)
+// logEnabledCategories logs which tool categories are active at startup.
+func logEnabledCategories(debugLogger *slog.Logger, flags *ToolCategoryFlags) {
+	enabled := []string{}
+	disabled := []string{}
+
+	if flags.Issues {
+		enabled = append(enabled, "issues")
+	} else {
+		disabled = append(disabled, "issues")
+	}
+
+	if flags.Labels {
+		enabled = append(enabled, "labels")
+	} else {
+		disabled = append(disabled, "labels")
+	}
+
+	if flags.ProjectMetadata {
+		enabled = append(enabled, "project-metadata")
+	} else {
+		disabled = append(disabled, "project-metadata")
+	}
+
+	if flags.Epics {
+		enabled = append(enabled, "epics")
+	} else {
+		disabled = append(disabled, "epics")
+	}
+
+	if flags.Pipelines {
+		enabled = append(enabled, "pipelines")
+	} else {
+		disabled = append(disabled, "pipelines")
+	}
+
+	debugLogger.Info("Tool categories configuration",
+		"enabled", strings.Join(enabled, ", "),
+		"disabled", strings.Join(disabled, ", "),
+	)
+
+	// Also log to stderr for user visibility
+	if len(disabled) > 0 {
+		fmt.Fprintf(os.Stderr, "[INFO] Disabled tool categories: %s\n",
+			strings.Join(disabled, ", "))
+	}
+}
+
+func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger, flags *ToolCategoryFlags) {
+	// Issues category (4 tools)
+	if flags.Issues {
+		setupListIssuesTool(s, appInstance, debugLogger)
+		setupCreateIssueTool(s, appInstance, debugLogger)
+		setupUpdateIssueTool(s, appInstance, debugLogger)
+		setupAddIssueNoteTool(s, appInstance, debugLogger)
+	}
+
+	// Labels category (1 tool)
+	if flags.Labels {
+		setupListLabelsTool(s, appInstance, debugLogger)
+	}
+
+	// Project metadata category (4 tools)
+	if flags.ProjectMetadata {
+		setupGetProjectDescriptionTool(s, appInstance, debugLogger)
+		setupUpdateProjectDescriptionTool(s, appInstance, debugLogger)
+		setupGetProjectTopicsTool(s, appInstance, debugLogger)
+		setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
+	}
+
+	// Epics category (3 tools)
+	if flags.Epics {
+		setupListEpicsTool(s, appInstance, debugLogger)
+		setupCreateEpicTool(s, appInstance, debugLogger)
+		setupAddIssueToEpicTool(s, appInstance, debugLogger)
+	}
+
+	// Pipelines category (4 tools)
+	if flags.Pipelines {
+		setupGetLatestPipelineTool(s, appInstance, debugLogger)
+		setupListPipelineJobsTool(s, appInstance, debugLogger)
+		setupGetJobLogTool(s, appInstance, debugLogger)
+		setupDownloadJobTraceTool(s, appInstance, debugLogger)
+	}
 }
 
 func main() {
-	handleCommandLineFlags()
+	flags := handleCommandLineFlags()
 	appInstance, debugLogger := initializeApp()
 
 	// Create MCP server
@@ -1622,7 +1728,8 @@ func main() {
 		server.WithResourceCapabilities(true, false),
 	)
 
-	registerAllTools(s, appInstance, debugLogger)
+	registerAllTools(s, appInstance, debugLogger, flags)
+	logEnabledCategories(debugLogger, flags)
 
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {

@@ -60,6 +60,22 @@ claude mcp add gitlab-mcp -s user -- /opt/homebrew/bin/gitlab-mcp
 claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
 ```
 
+### CLI Flags (Optional)
+
+Optimize token usage by disabling tool categories you don't need:
+
+```bash
+# Example: CI/CD debugging only
+gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
+
+# Example: Issue management only
+gitlab-mcp --no-project-metadata --no-epics --no-pipelines
+```
+
+Available flags: `--no-issues`, `--no-labels`, `--no-project-metadata`, `--no-epics`, `--no-pipelines`
+
+[Complete CLI configuration →](docs/SETUP.md#cli-flags)
+
 ### First Usage
 
 ```
