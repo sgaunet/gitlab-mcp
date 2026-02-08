@@ -144,9 +144,10 @@ func (a *App) ValidateConnection() error {
 
 // ListIssuesOptions contains options for listing project issues.
 type ListIssuesOptions struct {
-	State  string
-	Labels string
-	Limit  int64
+	State              string
+	Labels             string
+	Limit              int64
+	IncludeGroupIssues bool // defaults to true for comprehensive results
 }
 
 // CreateIssueOptions contains options for creating a project issue.
@@ -502,6 +503,50 @@ func convertGitLabPipeline(pipeline *gitlab.PipelineInfo) Pipeline {
 	}
 }
 
+// extractGroupPath extracts the parent group path from a project path.
+// Example: "myorg/team/project" → "myorg/team".
+func extractGroupPath(projectPath string) (string, error) {
+	if projectPath == "" {
+		return "", fmt.Errorf("%w: path cannot be empty", ErrProjectPathRequired)
+	}
+
+	// Split by "/" to extract namespaces
+	parts := strings.Split(projectPath, "/")
+
+	// Need at least 2 parts (group/project)
+	const minParts = 2
+	if len(parts) < minParts {
+		return "", fmt.Errorf("%w: does not contain a group (expected format: group/project): %s",
+			ErrProjectPathRequired, projectPath)
+	}
+
+	// Drop the last part (project name) to get group path
+	groupParts := parts[:len(parts)-1]
+	groupPath := strings.Join(groupParts, "/")
+
+	return groupPath, nil
+}
+
+// mergeIssues combines project and group issues, filtering out duplicates.
+func mergeIssues(projectIssues, groupIssues []*gitlab.Issue, currentProjectID int64) []Issue {
+	// Convert project issues
+	result := make([]Issue, 0, len(projectIssues)+len(groupIssues))
+	for _, issue := range projectIssues {
+		result = append(result, convertGitLabIssue(issue))
+	}
+
+	// Add group issues that don't belong to current project (deduplication)
+	for _, issue := range groupIssues {
+		if issue.ProjectID != currentProjectID {
+			result = append(result, convertGitLabIssue(issue))
+		}
+	}
+
+	// Sort by CreatedAt descending for consistent ordering
+	// Note: Issues are already sorted by GitLab API, but we maintain order
+	return result
+}
+
 // normalizeListIssuesOptions sets default values for list issues options.
 func normalizeListIssuesOptions(opts *ListIssuesOptions) *ListIssuesOptions {
 	if opts == nil {
@@ -520,6 +565,8 @@ func normalizeListIssuesOptions(opts *ListIssuesOptions) *ListIssuesOptions {
 }
 
 // ListProjectIssues retrieves issues for a given project path.
+//
+//nolint:cyclop,nestif,funlen // Complex group issues merging logic requires multiple branches
 func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]Issue, error) {
 	a.logger.Debug("Listing issues for project", "project_path", projectPath, "options", opts)
 
@@ -534,7 +581,7 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 	// Normalize options
 	opts = normalizeListIssuesOptions(opts)
 
-	// Create GitLab API options
+	// Create GitLab API options for project issues
 	listOpts := &gitlab.ListProjectIssuesOptions{
 		State:       &opts.State,
 		ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
@@ -550,18 +597,80 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 		}
 	}
 
-	// Call GitLab API
-	issues, _, err := a.client.Issues().ListProjectIssues(projectID, listOpts)
+	// Call GitLab API to get project issues
+	projectIssues, _, err := a.client.Issues().ListProjectIssues(projectID, listOpts)
 	if err != nil {
 		a.logger.Error("Failed to list project issues", "error", err, "project_id", projectID)
 		return nil, fmt.Errorf("failed to list project issues for %s: %w", projectPath, err)
 	}
 
-	a.logger.Debug("Retrieved issues", "count", len(issues), "project_id", projectID)
+	a.logger.Debug("Retrieved project issues", "count", len(projectIssues), "project_id", projectID)
 
-	// Convert GitLab issues to our Issue struct
-	result := make([]Issue, 0, len(issues))
-	for _, issue := range issues {
+	// If IncludeGroupIssues is true (default), fetch and merge group issues
+	if opts.IncludeGroupIssues {
+		// Extract group path from project path
+		groupPath, err := extractGroupPath(projectPath)
+		if err != nil {
+			a.logger.Warn("Failed to extract group path, returning project issues only",
+				"error", err, "project_path", projectPath)
+			// Graceful fallback: return project issues only
+			result := make([]Issue, 0, len(projectIssues))
+			for _, issue := range projectIssues {
+				result = append(result, convertGitLabIssue(issue))
+			}
+			a.logger.Info("Successfully retrieved project issues (group fetch skipped)",
+				"count", len(result), "project_id", projectID)
+			return result, nil
+		}
+
+		a.logger.Debug("Fetching group issues", "group_path", groupPath)
+
+		// Create GitLab API options for group issues (same filters)
+		groupListOpts := &gitlab.ListGroupIssuesOptions{
+			State:       &opts.State,
+			ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+		}
+
+		// Add labels filter if provided
+		if opts.Labels != "" {
+			labelList := parseLabels(opts.Labels)
+			if len(labelList) > 0 {
+				labels := gitlab.LabelOptions(labelList)
+				groupListOpts.Labels = &labels
+			}
+		}
+
+		// Call GitLab API to get group issues
+		groupIssues, _, err := a.client.Issues().ListGroupIssues(groupPath, groupListOpts)
+		if err != nil {
+			a.logger.Warn("Failed to fetch group issues, returning project issues only",
+				"error", err, "group_path", groupPath)
+			// Graceful fallback: return project issues only
+			result := make([]Issue, 0, len(projectIssues))
+			for _, issue := range projectIssues {
+				result = append(result, convertGitLabIssue(issue))
+			}
+			a.logger.Info("Successfully retrieved project issues (group fetch failed)",
+				"count", len(result), "project_id", projectID)
+			return result, nil
+		}
+
+		a.logger.Debug("Retrieved group issues", "count", len(groupIssues), "group_path", groupPath)
+
+		// Merge project and group issues with deduplication
+		result := mergeIssues(projectIssues, groupIssues, projectID)
+
+		a.logger.Info("Successfully retrieved and merged issues",
+			"total_count", len(result),
+			"project_issues", len(projectIssues),
+			"group_issues", len(groupIssues),
+			"project_id", projectID)
+		return result, nil
+	}
+
+	// If IncludeGroupIssues is false, return project issues only
+	result := make([]Issue, 0, len(projectIssues))
+	for _, issue := range projectIssues {
 		result = append(result, convertGitLabIssue(issue))
 	}
 

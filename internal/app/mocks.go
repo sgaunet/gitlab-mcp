@@ -116,6 +116,17 @@ func (m *MockIssuesService) ListProjectIssues(
 	return issues, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockIssuesService) ListGroupIssues(
+	gid any,
+	opt *gitlab.ListGroupIssuesOptions,
+	options ...gitlab.RequestOptionFunc,
+) ([]*gitlab.Issue, *gitlab.Response, error) {
+	args := m.Called(gid, opt, options)
+	issues, _ := args.Get(0).([]*gitlab.Issue)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return issues, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 func (m *MockIssuesService) CreateIssue(
 	pid any,
 	opt *gitlab.CreateIssueOptions,
