@@ -17,6 +17,12 @@ Complete installation and configuration guide for the GitLab MCP Server.
   - [Setting Variables Permanently](#setting-variables-permanently)
   - [GitLab Token Creation](#gitlab-token-creation)
   - [MCP Transport Protocol](#mcp-transport-protocol)
+- [CLI Flags](#cli-flags)
+  - [Available Flags](#available-flags)
+  - [Token Savings](#token-savings)
+  - [Use Cases](#use-cases)
+  - [Configuration with Claude Code](#configuration-with-claude-code)
+  - [Help and Version](#help-and-version)
 - [Adding to Claude Code](#adding-to-claude-code)
 - [Verification](#verification)
 
@@ -249,6 +255,120 @@ While MCP supports HTTP and Server-Sent Events (SSE), these are better suited fo
 - Web-based MCP clients
 
 **For GitLab integration with Claude Code, stdio provides the best user experience.**
+
+## CLI Flags
+
+The GitLab MCP server supports CLI flags to selectively disable tool categories, reducing token consumption for specialized AI agents that don't need all functionality.
+
+### Available Flags
+
+All tools are enabled by default. Use these flags to opt-out of specific categories:
+
+- `--no-issues` - Disable issue management tools (4 tools)
+- `--no-labels` - Disable label management tools (1 tool)
+- `--no-project-metadata` - Disable project metadata tools (4 tools)
+- `--no-epics` - Disable epic management tools (3 tools)
+- `--no-pipelines` - Disable CI/CD pipeline tools (4 tools)
+
+### Token Savings
+
+Disabling unused tool categories can significantly reduce token consumption:
+
+| Configuration | Tools Disabled | Token Savings |
+|---------------|----------------|---------------|
+| `--no-epics --no-pipelines` | 7 tools | ~1,350 tokens (~25%) |
+| `--no-issues --no-epics` | 7 tools | ~1,150 tokens (~21%) |
+| `--no-labels --no-epics` | 4 tools | ~650 tokens (~12%) |
+| Enable only issues/labels | 11 tools | ~1,950 tokens (~60%) |
+
+### Use Cases
+
+**CI/CD Debugging Agent:**
+```bash
+# Only needs pipeline tools
+gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
+```
+
+**Documentation Agent:**
+```bash
+# Only needs project metadata
+gitlab-mcp --no-issues --no-labels --no-epics --no-pipelines
+```
+
+**Issue Triage Bot:**
+```bash
+# Only needs issues and labels
+gitlab-mcp --no-project-metadata --no-epics --no-pipelines
+```
+
+### Configuration with Claude Code
+
+**Command-line registration with flags:**
+```bash
+# Example: Disable epics and pipelines
+claude mcp add gitlab-mcp -s user -- \
+  /usr/local/bin/gitlab-mcp --no-epics --no-pipelines
+```
+
+**Manual configuration in `mcp.json`:**
+```json
+{
+  "mcpServers": {
+    "gitlab-mcp": {
+      "type": "stdio",
+      "command": "/usr/local/bin/gitlab-mcp",
+      "args": ["--no-epics", "--no-pipelines"],
+      "env": {
+        "GITLAB_TOKEN": "your_personal_access_token"
+      }
+    }
+  }
+}
+```
+
+**Docker with CLI flags:**
+```bash
+# Docker registration with flags
+claude mcp add gitlab-mcp-docker -s user -- \
+  docker run --rm -i \
+  -e GITLAB_TOKEN=${GITLAB_TOKEN} \
+  ghcr.io/sgaunet/gitlab-mcp:latest \
+  --no-epics --no-pipelines
+```
+
+Or in `mcp.json`:
+```json
+{
+  "mcpServers": {
+    "gitlab-mcp-docker": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "GITLAB_TOKEN=your_token",
+        "ghcr.io/sgaunet/gitlab-mcp:latest",
+        "--no-epics",
+        "--no-pipelines"
+      ]
+    }
+  }
+}
+```
+
+### Help and Version
+
+View available flags:
+```bash
+gitlab-mcp --help
+```
+
+Check server version:
+```bash
+gitlab-mcp --version
+```
 
 ## Adding to Claude Code
 

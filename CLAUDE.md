@@ -168,6 +168,55 @@ Download the log for job 11111 from the develop branch to /tmp/build.log
 
 The tool handles the resolution automatically - no need to look up user IDs or milestone IDs manually.
 
+## CLI Flags for Token Optimization
+
+The server supports CLI flags to disable tool categories, reducing token consumption for specialized use cases:
+
+### Available Flags
+
+- `--no-issues` - Disable issue management tools (4 tools)
+- `--no-labels` - Disable label management tools (1 tool)
+- `--no-project-metadata` - Disable project metadata tools (4 tools)
+- `--no-epics` - Disable epic management tools (3 tools)
+- `--no-pipelines` - Disable CI/CD pipeline tools (4 tools)
+
+### Usage Examples
+
+**CI/CD debugging agent (only pipeline tools):**
+```bash
+gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
+```
+
+**Documentation agent (only project metadata):**
+```bash
+gitlab-mcp --no-issues --no-labels --no-epics --no-pipelines
+```
+
+**Issue triage bot (only issues and labels):**
+```bash
+gitlab-mcp --no-project-metadata --no-epics --no-pipelines
+```
+
+### Configuration with Claude Code
+
+In `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "gitlab-mcp": {
+      "type": "stdio",
+      "command": "/usr/local/bin/gitlab-mcp",
+      "args": ["--no-epics", "--no-pipelines"],
+      "env": {
+        "GITLAB_TOKEN": "your_token"
+      }
+    }
+  }
+}
+```
+
+**Note:** All tools are enabled by default. Use flags to opt-out of categories you don't need.
+
 ## Common Development Commands
 
 ### Build and Test
