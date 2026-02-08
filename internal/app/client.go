@@ -112,6 +112,18 @@ func (i *IssuesServiceWrapper) ListProjectIssues(
 	return issues, resp, nil
 }
 
+func (i *IssuesServiceWrapper) ListGroupIssues(
+	gid any,
+	opt *gitlab.ListGroupIssuesOptions,
+	options ...gitlab.RequestOptionFunc,
+) ([]*gitlab.Issue, *gitlab.Response, error) {
+	issues, resp, err := i.service.ListGroupIssues(gid, opt, options...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return issues, resp, nil
+}
+
 func (i *IssuesServiceWrapper) CreateIssue(
 	pid any,
 	opt *gitlab.CreateIssueOptions,

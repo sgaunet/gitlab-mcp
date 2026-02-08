@@ -61,6 +61,34 @@ The server uses the official GitLab Go client library (`gitlab.com/gitlab-org/ap
 
 ### Usage Examples
 
+**Listing issues:**
+
+By default, the `list_issues` tool returns issues from both the project and its parent group(s) for comprehensive visibility:
+
+```
+List issues for myorg/team/project
+```
+
+This returns issues from:
+- The project `myorg/team/project`
+- The parent group `myorg/team` (and all its projects)
+
+**Excluding group issues:**
+
+To retrieve only project-level issues:
+
+```
+List issues for myorg/project with include_group_issues=false
+```
+
+**How deduplication works:**
+
+When group issues are included, issues that belong to the current project are deduplicated based on their ProjectID. This ensures each issue appears only once in the results.
+
+**Graceful fallback:**
+
+If fetching group issues fails (due to permissions or other errors), the tool automatically falls back to returning only project issues, ensuring the request always succeeds when project access is available.
+
 **Managing project descriptions:**
 ```
 Get the description of sgaunet/gitlab-mcp
@@ -241,12 +269,14 @@ The app uses GitLab project paths in the format `namespace/project-name` (e.g., 
 ### GitLab API Integration
 The server uses the official GitLab Go client to interact with GitLab's REST API:
 - **Project Access**: `/projects/:path` endpoint for direct project access by path
-- **Issues List**: `/projects/:id/issues` endpoint for issue retrieval
+- **Issues List**: `/projects/:id/issues` endpoint for project issue retrieval
+- **Group Issues List**: `/groups/:id/issues` endpoint for group issue retrieval (merged with project issues by default)
 - **Issue Creation**: `/projects/:id/issues` endpoint for creating new issues
 - **Issue Updates**: `/projects/:id/issues/:issue_iid` endpoint for updating existing issues
 - **Notes Creation**: `/projects/:id/issues/:issue_iid/notes` endpoint for adding notes/comments to issues
 - **Labels List**: `/projects/:id/labels` endpoint for label retrieval
 - **Filtering**: Supports state filtering, label filtering, search, and pagination
+- **Deduplication**: Group issues are filtered to exclude duplicates from the current project
 - **Response Format**: Returns structured JSON with issue, label, note, and project metadata
 
 ### MCP Protocol Implementation
@@ -273,7 +303,32 @@ Unit tests provide comprehensive coverage of all functionality:
 - `ListPipelineJobs`: Job listing with pipeline ID resolution, status/stage filtering, and comprehensive error handling
 - Edge cases: nil parameters, empty values, API errors, project not found, invalid issue IIDs
 
-All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **69.1%**.
+All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **72.7%**.
+
+### Group Issues Integration
+
+The `list_issues` tool includes enhanced functionality for retrieving issues from parent groups:
+
+**Architecture:**
+- Uses `ListGroupIssues` API endpoint (`/groups/:id/issues`) to fetch group-level issues
+- Automatically extracts group path from project path (e.g., `myorg/team/project` → `myorg/team`)
+- Merges project and group issues with deduplication based on `ProjectID`
+- Graceful fallback to project-only results if group fetching fails
+
+**Default Behavior:**
+- `include_group_issues` parameter defaults to `true` for comprehensive results
+- Users can opt-out by setting `include_group_issues=false`
+
+**Error Scenarios Handled:**
+- Invalid project paths (missing group): Falls back to project-only results
+- Group access denied: Falls back to project-only results
+- Group not found: Falls back to project-only results
+- Permission errors: Falls back to project-only results
+
+**Test Coverage:**
+- Helper functions: `extractGroupPath()`, `mergeIssues()`
+- Integration tests: merged results, deduplication, graceful fallbacks
+- Edge cases: empty sets, full/partial overlap, permission errors
 
 ## Adding New Tools
 

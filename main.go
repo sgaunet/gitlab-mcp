@@ -38,9 +38,13 @@ var (
 )
 
 // setupListIssuesTool creates and registers the list_issues tool.
+//
+//nolint:cyclop,funlen // Parameter extraction requires multiple branches
 func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
 	listIssuesTool := mcp.NewTool("list_issues",
-		mcp.WithDescription("List issues for a GitLab project by project path"),
+		mcp.WithDescription("List issues for a GitLab project by project path. "+
+			"By default, includes issues from both the project and its parent group(s) for comprehensive visibility. "+
+			"Use include_group_issues=false to retrieve only project-level issues."),
 		mcp.WithString("project_path",
 			mcp.Required(),
 			mcp.Description("GitLab project path including all namespaces (e.g., 'namespace/project-name' or "+
@@ -54,6 +58,10 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 		),
 		mcp.WithNumber("limit",
 			mcp.Description("Maximum number of issues to return (default: 100, max: 100)"),
+		),
+		mcp.WithBoolean("include_group_issues",
+			mcp.Description("Include issues from parent group(s). Defaults to true for comprehensive results. "+
+				"Set to false to retrieve only project-level issues."),
 		),
 	)
 
@@ -70,8 +78,9 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 
 		// Extract optional parameters
 		opts := &app.ListIssuesOptions{
-			State: "opened",     // default
-			Limit: defaultLimit, // default
+			State:              "opened",     // default
+			Limit:              defaultLimit, // default
+			IncludeGroupIssues: true,         // default to true for comprehensive results
 		}
 
 		if state, ok := args["state"].(string); ok && state != "" {
@@ -84,6 +93,11 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 
 		if limitFloat, ok := args["limit"].(float64); ok {
 			opts.Limit = int64(limitFloat)
+		}
+
+		// Extract include_group_issues (defaults to true)
+		if includeGroupIssues, ok := args["include_group_issues"].(bool); ok {
+			opts.IncludeGroupIssues = includeGroupIssues
 		}
 
 		debugLogger.Debug("Processing list_issues request", "project_path", projectPath, "opts", opts)

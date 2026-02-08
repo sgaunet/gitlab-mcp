@@ -19,9 +19,21 @@ type GroupsService interface {
 
 // IssuesService interface for GitLab Issues operations.
 type IssuesService interface {
-	ListProjectIssues(pid any, opt *gitlab.ListProjectIssuesOptions) ([]*gitlab.Issue, *gitlab.Response, error)
+	ListProjectIssues(
+		pid any,
+		opt *gitlab.ListProjectIssuesOptions,
+	) ([]*gitlab.Issue, *gitlab.Response, error)
+	ListGroupIssues(
+		gid any,
+		opt *gitlab.ListGroupIssuesOptions,
+		options ...gitlab.RequestOptionFunc,
+	) ([]*gitlab.Issue, *gitlab.Response, error)
 	CreateIssue(pid any, opt *gitlab.CreateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
-	UpdateIssue(pid any, issue int64, opt *gitlab.UpdateIssueOptions) (*gitlab.Issue, *gitlab.Response, error)
+	UpdateIssue(
+		pid any,
+		issue int64,
+		opt *gitlab.UpdateIssueOptions,
+	) (*gitlab.Issue, *gitlab.Response, error)
 	GetIssue(pid any, issue int) (*gitlab.Issue, *gitlab.Response, error)
 }
 
