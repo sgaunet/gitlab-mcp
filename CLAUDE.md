@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Model Context Protocol (MCP) server that provides GitLab integration tools for Claude Code. It's implemented as a Go application that communicates via JSON-RPC 2.0 over stdin/stdout, providing tools for GitLab project management:
 
 - `list_issues`: Lists issues for a GitLab project using project path with filtering options
-- `create_issues`: Creates new issues with title, description, labels, and assignees
-- `update_issues`: Updates existing issues (title, description, state, labels, assignees)
+- `create_issues`: Creates new issues with title, description, labels (validated), and assignees
+- `update_issues`: Updates existing issues (title, description, state, labels (validated), assignees)
 - `list_labels`: Lists project labels with optional filtering and counts
 - `add_issue_note`: Adds notes/comments to existing issues
 - `get_project_description`: Gets the current description of a GitLab project
@@ -16,7 +16,7 @@ This is a Model Context Protocol (MCP) server that provides GitLab integration t
 - `get_project_topics`: Gets the current topics/tags of a GitLab project
 - `update_project_topics`: Updates the topics/tags of a GitLab project (replaces all existing topics)
 - `list_epics`: Lists epics for a GitLab group (Premium/Ultimate tier)
-- `create_epic`: Creates new epics in a GitLab group with title, description, labels, dates, and confidentiality (Premium/Ultimate tier)
+- `create_epic`: Creates new epics in a GitLab group with title, description, labels (validated), dates, and confidentiality (Premium/Ultimate tier)
 - `get_latest_pipeline`: Gets the latest pipeline for a GitLab project with optional ref (branch/tag) filtering
 - `list_pipeline_jobs`: Lists all jobs for a GitLab pipeline with filtering options (status, stage)
 - `get_job_log`: Retrieves complete log output for a specific CI/CD job with job metadata
@@ -303,9 +303,36 @@ When adding new functionality:
 
 ### Optional
 - `GITLAB_URI`: GitLab instance URI (defaults to `https://gitlab.com/`)
-- `GITLAB_VALIDATE_LABELS`: Enable/disable label validation for issue creation (defaults to `true`)
-  - `true`: Validates that labels exist in the project before creating issues (prevents typos)
-  - `false`: Allows creating issues with non-existent labels (GitLab's default behavior)
+- `GITLAB_VALIDATE_LABELS`: Enable/disable label validation for issue and epic creation/updates (defaults to `true`)
+  - `true`: Validates that labels exist in the project/group before creating/updating issues/epics (prevents typos)
+  - `false`: Allows creating/updating issues/epics with non-existent labels (GitLab API ignores invalid labels)
+
+#### Label Validation Hierarchy
+
+When `GITLAB_VALIDATE_LABELS=true` (default), labels are validated hierarchically to encourage reuse across the project hierarchy:
+
+1. **Project labels** are checked first
+2. **Parent group labels** are checked
+3. **Grandparent group labels** (and so on up the hierarchy)
+
+This hierarchical validation encourages label reuse and reduces label proliferation by making group-level labels available to all child projects.
+
+**Example**:
+- Root group `myorg` has labels: `["roadmap", "high-priority"]`
+- Sub-group `myorg/team` has labels: `["backend", "frontend"]`
+- Project `myorg/team/project` has labels: `["bug", "feature"]`
+- Creating an issue with `["bug", "roadmap", "backend"]` succeeds because:
+  - `"bug"` exists at project level
+  - `"backend"` exists at parent group level
+  - `"roadmap"` exists at root group level
+
+**Benefits**:
+- Encourages consistent labeling across projects within an organization
+- Reduces duplicate labels (e.g., multiple projects creating their own "high-priority" label)
+- Follows GitLab's best practice of defining labels at the appropriate group level
+- Provides clear error messages showing all available labels from the entire hierarchy
+
+**Note**: The `list_labels` tool also supports hierarchical label listing by default. Set `include_ancestor_groups=false` to view only project-specific labels.
 
 ### Go Version
 - Requires Go 1.24.3 or later (as specified in `go.mod`)

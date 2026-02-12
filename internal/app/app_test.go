@@ -386,7 +386,7 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				mockLabels.On("ListLabels", int64(123), listOpts).Return(
@@ -545,7 +545,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				labels.On("ListLabels", int64(123), listOpts).Return(
@@ -595,7 +595,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				labels.On("ListLabels", int64(123), listOpts).Return(
@@ -625,7 +625,7 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				labels.On("ListLabels", int64(123), listOpts).Return(
@@ -720,7 +720,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 
 				expectedOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -762,7 +762,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 		},
 		{
 			name: "successful list with custom options",
-			opts: &ListLabelsOptions{WithCounts: true, Search: "bug", Limit: 50},
+			opts: &ListLabelsOptions{WithCounts: gitlab.Ptr(true), Search: "bug", Limit: 50},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, labels *MockLabelsService) {
 				client.On("Projects").Return(projects)
 				client.On("Labels").Return(labels)
@@ -773,7 +773,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 
 				expectedOpts := &gitlab.ListLabelsOptions{
 					WithCounts:            gitlab.Ptr(true),
-					IncludeAncestorGroups: gitlab.Ptr(false),
+					IncludeAncestorGroups: gitlab.Ptr(true),
 					Search:                gitlab.Ptr("bug"),
 					ListOptions:           gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
@@ -2175,9 +2175,9 @@ func TestApp_CreateEpic_LabelValidation(t *testing.T) {
 				// Mock GetGroup
 				groups.On("GetGroup", "myorg", (*gitlab.GetGroupOptions)(nil)).
 					Return(&gitlab.Group{ID: 456, FullPath: "myorg"}, &gitlab.Response{}, nil)
-				// Mock ListGroupLabels for validation
+				// Mock ListGroupLabels for validation (hierarchical)
 				groupLabels.On("ListGroupLabels", int64(456), mock.MatchedBy(func(opt *gitlab.ListGroupLabelsOptions) bool {
-					return opt.PerPage == maxLabelsPerPage
+					return opt.PerPage == maxLabelsPerPage && opt.IncludeAncestorGroups != nil && *opt.IncludeAncestorGroups
 				})).Return([]*gitlab.GroupLabel{
 					{ID: 1, Name: "roadmap"},
 					{ID: 2, Name: "high-priority"},
@@ -2334,7 +2334,7 @@ func TestApp_validateGroupLabels(t *testing.T) {
 			requestedLabels: []string{"any-label"},
 			existingLabels:  []*gitlab.GroupLabel{},
 			wantErr:         true,
-			wantErrContains: "has no labels defined",
+			wantErrContains: "parent groups have no labels defined",
 		},
 	}
 

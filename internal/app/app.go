@@ -169,8 +169,8 @@ type UpdateIssueOptions struct {
 
 // ListLabelsOptions contains options for listing project labels.
 type ListLabelsOptions struct {
-	WithCounts            bool
-	IncludeAncestorGroups bool
+	WithCounts            *bool
+	IncludeAncestorGroups *bool
 	Search                string
 	Limit                 int64
 }
@@ -740,59 +740,48 @@ func (a *App) CreateProjectIssue(projectPath string, opts *CreateIssueOptions) (
 	return &result, nil
 }
 
-// ListProjectLabels retrieves labels for a given project path.
-func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]Label, error) {
-	a.logger.Debug("Listing labels for project", "project_path", projectPath, "options", opts)
-
-	// Get project by path
-	project, _, err := a.client.Projects().GetProject(projectPath, nil)
-	if err != nil {
-		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
-		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
-	}
-	projectID := project.ID
-
-	// Set default options if not provided
+// buildListLabelsOptions creates GitLab API options from ListLabelsOptions.
+func buildListLabelsOptions(opts *ListLabelsOptions) *gitlab.ListLabelsOptions {
+	// Set defaults if not provided
 	if opts == nil {
-		opts = &ListLabelsOptions{
-			WithCounts:            false,
-			IncludeAncestorGroups: false,
-			Limit:                 maxLabelsPerPage,
-		}
+		opts = &ListLabelsOptions{Limit: maxLabelsPerPage}
 	}
 
-	// Set defaults for individual options
-	if opts.Limit == 0 {
-		opts.Limit = maxLabelsPerPage
-	}
-	if opts.Limit > maxLabelsPerPage {
-		opts.Limit = maxLabelsPerPage // Cap at max labels per page
+	withCounts := false
+	if opts.WithCounts != nil {
+		withCounts = *opts.WithCounts
 	}
 
-	// Create GitLab API options
+	includeAncestorGroups := true // Default to hierarchical labels
+	if opts.IncludeAncestorGroups != nil {
+		includeAncestorGroups = *opts.IncludeAncestorGroups
+	}
+
+	limit := opts.Limit
+	if limit == 0 {
+		limit = maxLabelsPerPage
+	}
+	if limit > maxLabelsPerPage {
+		limit = maxLabelsPerPage
+	}
+
 	listOpts := &gitlab.ListLabelsOptions{
-		WithCounts:            &opts.WithCounts,
-		IncludeAncestorGroups: &opts.IncludeAncestorGroups,
-		ListOptions:           gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+		WithCounts:            &withCounts,
+		IncludeAncestorGroups: &includeAncestorGroups,
+		ListOptions:           gitlab.ListOptions{PerPage: limit, Page: 1},
 	}
 
-	// Add search filter if provided
 	if opts.Search != "" {
 		listOpts.Search = &opts.Search
 	}
 
-	// Call GitLab API
-	labels, _, err := a.client.Labels().ListLabels(projectID, listOpts)
-	if err != nil {
-		a.logger.Error("Failed to list project labels", "error", err, "project_id", projectID)
-		return nil, fmt.Errorf("failed to list project labels for %s: %w", projectPath, err)
-	}
+	return listOpts
+}
 
-	a.logger.Debug("Retrieved labels", "count", len(labels), "project_id", projectID)
-
-	// Convert GitLab labels to our Label struct
-	result := make([]Label, 0, len(labels))
-	for _, label := range labels {
+// convertGitLabLabels converts GitLab label objects to our Label struct.
+func convertGitLabLabels(gitlabLabels []*gitlab.Label) []Label {
+	result := make([]Label, 0, len(gitlabLabels))
+	for _, label := range gitlabLabels {
 		result = append(result, Label{
 			ID:                     label.ID,
 			Name:                   label.Name,
@@ -807,7 +796,34 @@ func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]
 			IsProjectLabel:         label.IsProjectLabel,
 		})
 	}
+	return result
+}
 
+// ListProjectLabels retrieves labels for a given project path.
+func (a *App) ListProjectLabels(projectPath string, opts *ListLabelsOptions) ([]Label, error) {
+	a.logger.Debug("Listing labels for project", "project_path", projectPath, "options", opts)
+
+	// Get project by path
+	project, _, err := a.client.Projects().GetProject(projectPath, nil)
+	if err != nil {
+		a.logger.Error("Failed to get project", "error", err, "project_path", projectPath)
+		return nil, fmt.Errorf("failed to get project %s: %w", projectPath, err)
+	}
+	projectID := project.ID
+
+	// Build API options with defaults
+	listOpts := buildListLabelsOptions(opts)
+
+	// Call GitLab API
+	labels, _, err := a.client.Labels().ListLabels(projectID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to list project labels", "error", err, "project_id", projectID)
+		return nil, fmt.Errorf("failed to list project labels for %s: %w", projectPath, err)
+	}
+
+	a.logger.Debug("Retrieved labels", "count", len(labels), "project_id", projectID)
+
+	result := convertGitLabLabels(labels)
 	a.logger.Info("Successfully retrieved project labels", "count", len(result), "project_id", projectID)
 	return result, nil
 }
@@ -1890,9 +1906,10 @@ func (a *App) validateLabels(projectID int64, projectPath string, requestedLabel
 
 	a.logger.Debug("Validating labels", "project_id", projectID, "requested_labels", requestedLabels)
 
-	// Get existing labels from the project
+	// Get existing labels from the project and parent groups (hierarchical)
 	existingLabels, err := a.ListProjectLabels(projectPath, &ListLabelsOptions{
-		Limit: maxLabelsPerPage,
+		Limit:                 maxLabelsPerPage,
+		IncludeAncestorGroups: gitlab.Ptr(true),
 	})
 	if err != nil {
 		a.logger.Error("Failed to retrieve existing labels for validation", "error", err, "project_id", projectID)
@@ -1920,16 +1937,16 @@ func (a *App) validateLabels(projectID int64, projectPath string, requestedLabel
 
 		// Format error message with missing labels and available labels
 		var errorMsg strings.Builder
-		fmt.Fprintf(&errorMsg, "The following labels do not exist in project '%s':\n", projectPath)
+		fmt.Fprintf(&errorMsg, "The following labels do not exist in project '%s' or its parent groups:\n", projectPath)
 		for _, label := range missingLabels {
 			fmt.Fprintf(&errorMsg, "- '%s'\n", label)
 		}
 
 		if len(existingLabelNames) > 0 {
-			errorMsg.WriteString("\nAvailable labels in this project:\n- ")
+			errorMsg.WriteString("\nAvailable labels in this project and parent groups:\n- ")
 			errorMsg.WriteString(strings.Join(existingLabelNames, ", "))
 		} else {
-			errorMsg.WriteString("\nThis project has no labels defined.")
+			errorMsg.WriteString("\nThis project and its parent groups have no labels defined.")
 		}
 
 		errorMsg.WriteString("\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false")
@@ -1949,9 +1966,10 @@ func (a *App) validateGroupLabels(groupID int64, groupPath string, requestedLabe
 
 	a.logger.Debug("Validating group labels", "group_id", groupID, "requested_labels", requestedLabels)
 
-	// Get existing group labels
+	// Get existing group labels including parent groups (hierarchical)
 	listOpts := &gitlab.ListGroupLabelsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+		ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+		IncludeAncestorGroups: gitlab.Ptr(true),
 	}
 
 	groupLabels, _, err := a.client.GroupLabels().ListGroupLabels(groupID, listOpts)
@@ -1981,16 +1999,16 @@ func (a *App) validateGroupLabels(groupID int64, groupPath string, requestedLabe
 
 		// Format error message with missing labels and available labels
 		var errorMsg strings.Builder
-		fmt.Fprintf(&errorMsg, "The following labels do not exist in group '%s':\n", groupPath)
+		fmt.Fprintf(&errorMsg, "The following labels do not exist in group '%s' or its parent groups:\n", groupPath)
 		for _, label := range missingLabels {
 			fmt.Fprintf(&errorMsg, "- '%s'\n", label)
 		}
 
 		if len(existingLabelNames) > 0 {
-			errorMsg.WriteString("\nAvailable labels in this group:\n- ")
+			errorMsg.WriteString("\nAvailable labels in this group and parent groups:\n- ")
 			errorMsg.WriteString(strings.Join(existingLabelNames, ", "))
 		} else {
-			errorMsg.WriteString("\nThis group has no labels defined.")
+			errorMsg.WriteString("\nThis group and its parent groups have no labels defined.")
 		}
 
 		errorMsg.WriteString("\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false")
