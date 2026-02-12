@@ -27,27 +27,29 @@ const (
 
 // Error variables for static errors.
 var (
-	ErrGitLabTokenRequired   = errors.New("GITLAB_TOKEN environment variable is required")
-	ErrCreateOptionsRequired = errors.New("create issue options are required")
-	ErrIssueTitleRequired    = errors.New("issue title is required")
-	ErrInvalidIssueIID       = errors.New("issue IID must be a positive integer")
-	ErrUpdateOptionsRequired = errors.New("update issue options are required")
-	ErrNoteBodyRequired      = errors.New("note body is required")
-	ErrLabelValidationFailed = errors.New("label validation failed")
-	ErrEpicsTierRequired     = errors.New("epics require GitLab Premium or Ultimate tier")
-	ErrEpicTitleRequired     = errors.New("epic title is required")
-	ErrInvalidDateFormat     = errors.New("date must be in YYYY-MM-DD format")
-	ErrEpicIIDRequired       = errors.New("epic IID is required")
-	ErrProjectPathRequired   = errors.New("project path is required")
-	ErrGroupPathRequired     = errors.New("group path is required")
-	ErrIssueNotFound         = errors.New("issue not found")
-	ErrNoPipelinesFound      = errors.New("no pipelines found")
-	ErrJobLogOptionsRequired = errors.New("options cannot be nil")
-	ErrInvalidJobID          = errors.New("job_id must be positive")
-	ErrJobNotFoundInPipeline = errors.New("job not found in pipeline")
-	ErrInvalidOutputPath     = errors.New("invalid output path")
-	ErrFileWriteFailed       = errors.New("failed to write trace file")
-	ErrPathTraversalAttempt  = errors.New("path traversal attempt detected")
+	ErrGitLabTokenRequired      = errors.New("GITLAB_TOKEN environment variable is required")
+	ErrCreateOptionsRequired    = errors.New("create issue options are required")
+	ErrIssueTitleRequired       = errors.New("issue title is required")
+	ErrInvalidIssueIID          = errors.New("issue IID must be a positive integer")
+	ErrUpdateOptionsRequired    = errors.New("update issue options are required")
+	ErrUpdateEpicOptionsRequired = errors.New("update epic options are required")
+	ErrNoteBodyRequired         = errors.New("note body is required")
+	ErrLabelValidationFailed    = errors.New("label validation failed")
+	ErrEpicsTierRequired        = errors.New("epics require GitLab Premium or Ultimate tier")
+	ErrEpicTitleRequired        = errors.New("epic title is required")
+	ErrInvalidDateFormat        = errors.New("date must be in YYYY-MM-DD format")
+	ErrEpicIIDRequired          = errors.New("epic IID is required")
+	ErrInvalidEpicState         = errors.New("epic state must be 'opened' or 'closed'")
+	ErrProjectPathRequired      = errors.New("project path is required")
+	ErrGroupPathRequired        = errors.New("group path is required")
+	ErrIssueNotFound            = errors.New("issue not found")
+	ErrNoPipelinesFound         = errors.New("no pipelines found")
+	ErrJobLogOptionsRequired    = errors.New("options cannot be nil")
+	ErrInvalidJobID             = errors.New("job_id must be positive")
+	ErrJobNotFoundInPipeline    = errors.New("job not found in pipeline")
+	ErrInvalidOutputPath        = errors.New("invalid output path")
+	ErrFileWriteFailed          = errors.New("failed to write trace file")
+	ErrPathTraversalAttempt     = errors.New("path traversal attempt detected")
 )
 
 type App struct {
@@ -199,6 +201,17 @@ type CreateEpicOptions struct {
 	StartDate    string
 	DueDate      string
 	Confidential bool
+}
+
+// UpdateEpicOptions contains options for updating a group epic.
+type UpdateEpicOptions struct {
+	Title        string
+	Description  string
+	Labels       []string
+	StartDate    string   // YYYY-MM-DD
+	DueDate      string   // YYYY-MM-DD
+	State        string   // "opened" or "closed"
+	Confidential *bool    // Pointer: nil=no change, true/false=set value
 }
 
 // AddIssueToEpicOptions contains options for attaching an issue to an epic.
@@ -1145,6 +1158,47 @@ func (a *App) CreateGroupEpic(groupPath string, opts *CreateEpicOptions) (*Epic,
 	return &result, nil
 }
 
+// UpdateGroupEpic updates an existing epic in a GitLab group.
+func (a *App) UpdateGroupEpic(groupPath string, epicIID int, opts *UpdateEpicOptions) (*Epic, error) {
+	// Validate parameters
+	if epicIID <= 0 {
+		return nil, ErrEpicIIDRequired
+	}
+	if opts == nil {
+		return nil, ErrUpdateEpicOptionsRequired
+	}
+
+	a.logger.Debug("Updating epic for group", "group_path", groupPath, "epic_iid", epicIID)
+
+	// Resolve group path to group ID
+	groupID, err := a.resolveGroupID(groupPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build GitLab API options (includes validation)
+	updateOpts, err := a.buildUpdateEpicOptions(groupID, groupPath, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Debug("Updating epic", "group_id", groupID, "epic_iid", epicIID)
+
+	// Call GitLab API
+	epic, _, err := a.client.Epics().UpdateEpic(groupID, epicIID, updateOpts)
+	if err != nil {
+		return nil, a.handleEpicsAPIError(err, groupID, "failed to update epic")
+	}
+
+	a.logger.Debug("Updated epic", "id", epic.ID, "iid", epic.IID, "group_id", groupID)
+
+	result := convertGitLabEpic(epic)
+	a.logger.Info("Successfully updated epic",
+		"id", result.ID, "iid", result.IID, "group_id", groupID)
+
+	return &result, nil
+}
+
 // AddIssueToEpic attaches an issue to an epic.
 func (a *App) AddIssueToEpic(opts *AddIssueToEpicOptions) (*EpicIssueAssignment, error) {
 	// Validate options
@@ -1857,6 +1911,101 @@ func (a *App) buildCreateEpicOptions(
 	}
 
 	return createOpts
+}
+
+// buildUpdateEpicOptions builds GitLab API options for updating an epic.
+func (a *App) buildUpdateEpicOptions(
+	groupID int64,
+	groupPath string,
+	opts *UpdateEpicOptions,
+) (*gitlab.UpdateEpicOptions, error) {
+	updateOpts := &gitlab.UpdateEpicOptions{}
+
+	// Only set non-zero fields (partial update)
+	if opts.Title != "" {
+		updateOpts.Title = &opts.Title
+	}
+
+	if opts.Description != "" {
+		updateOpts.Description = &opts.Description
+	}
+
+	// Validate and set state
+	if err := a.setEpicState(updateOpts, opts.State); err != nil {
+		return nil, err
+	}
+
+	// Parse and set dates
+	if err := a.setEpicDates(updateOpts, opts); err != nil {
+		return nil, err
+	}
+
+	// Validate and set labels if provided
+	if err := a.setEpicLabels(updateOpts, groupID, groupPath, opts.Labels); err != nil {
+		return nil, err
+	}
+
+	// Set confidential flag (pointer allows distinguishing between false and unset)
+	if opts.Confidential != nil {
+		updateOpts.Confidential = opts.Confidential
+	}
+
+	return updateOpts, nil
+}
+
+// setEpicState validates and sets the epic state.
+func (a *App) setEpicState(updateOpts *gitlab.UpdateEpicOptions, state string) error {
+	if state != "" {
+		if state != "opened" && state != "closed" {
+			return ErrInvalidEpicState
+		}
+		updateOpts.StateEvent = &state
+	}
+	return nil
+}
+
+// setEpicDates parses and sets the epic start and due dates.
+func (a *App) setEpicDates(updateOpts *gitlab.UpdateEpicOptions, opts *UpdateEpicOptions) error {
+	if opts.StartDate != "" {
+		startDate, err := a.parseDate(opts.StartDate)
+		if err != nil {
+			return fmt.Errorf("invalid start_date: %w", err)
+		}
+		updateOpts.StartDateFixed = startDate
+		fixed := true
+		updateOpts.StartDateIsFixed = &fixed
+	}
+
+	if opts.DueDate != "" {
+		dueDate, err := a.parseDate(opts.DueDate)
+		if err != nil {
+			return fmt.Errorf("invalid due_date: %w", err)
+		}
+		updateOpts.DueDateFixed = dueDate
+		fixed := true
+		updateOpts.DueDateIsFixed = &fixed
+	}
+
+	return nil
+}
+
+// setEpicLabels validates and sets the epic labels.
+func (a *App) setEpicLabels(
+	updateOpts *gitlab.UpdateEpicOptions,
+	groupID int64,
+	groupPath string,
+	labels []string,
+) error {
+	if labels != nil {
+		if a.ValidateLabels && len(labels) > 0 {
+			if err := a.validateGroupLabels(groupID, groupPath, labels); err != nil {
+				return err
+			}
+		}
+		labelOptions := gitlab.LabelOptions(labels)
+		updateOpts.Labels = &labelOptions
+	}
+	return nil
 }
 
 // addNoteCommon handles common logic for adding notes.

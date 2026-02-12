@@ -124,6 +124,23 @@ Create an epic in myorg group with title "Q1 2024 Launch"
 Create an epic in myorg/platform group with title "Authentication Redesign", description "Modernize auth with OAuth2 and JWT", labels ["security", "high-priority"], start date "2024-03-01", due date "2024-06-30", and make it confidential
 ```
 
+**Updating epics:**
+```
+Update the title of epic 5 in myorg group to "Q2 2024 Launch"
+```
+
+```
+Update epic 3 in myorg/platform with description "Updated roadmap", state "closed", and labels ["completed", "archived"]
+```
+
+```
+Update epic 2 dates: start "2024-04-01", due "2024-06-30", and make it confidential
+```
+
+```
+Update only the labels on epic 7 to ["backend", "infrastructure"]
+```
+
 **Debugging CI/CD pipelines:**
 ```
 Get the latest pipeline for myorg/myproject

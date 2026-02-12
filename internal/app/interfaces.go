@@ -66,6 +66,7 @@ type NotesService interface {
 type EpicsService interface {
 	ListGroupEpics(gid any, opt *gitlab.ListGroupEpicsOptions) ([]*gitlab.Epic, *gitlab.Response, error)
 	CreateEpic(gid any, opt *gitlab.CreateEpicOptions) (*gitlab.Epic, *gitlab.Response, error)
+	UpdateEpic(gid any, epic int, opt *gitlab.UpdateEpicOptions) (*gitlab.Epic, *gitlab.Response, error)
 }
 
 // EpicIssuesService interface for GitLab Epic Issues operations.

@@ -2151,6 +2151,623 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 	}
 }
 
+func TestApp_UpdateGroupEpic(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name    string
+		epicIID int
+		opts    *UpdateEpicOptions
+		setup   func(*MockGitLabClient, *MockGroupsService, *MockEpicsService, *MockGroupLabelsService)
+		want    *Epic
+		wantErr bool
+		errType error
+	}{
+		{
+			name:    "successful update with all fields",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				Title:        "Updated Epic Title",
+				Description:  "Updated Description",
+				Labels:       []string{"updated", "labels"},
+				StartDate:    "2024-04-01",
+				DueDate:      "2024-07-31",
+				State:        "closed",
+				Confidential: gitlab.Ptr(true),
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+				client.On("GroupLabels").Return(groupLabels)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				// Mock label validation
+				listOpts := &gitlab.ListGroupLabelsOptions{
+					ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+					IncludeAncestorGroups: gitlab.Ptr(true),
+				}
+				groupLabels.On("ListGroupLabels", int64(456), listOpts).Return(
+					[]*gitlab.GroupLabel{
+						{Name: "updated"},
+						{Name: "labels"},
+					}, &gitlab.Response{}, nil,
+				)
+
+				startDate := gitlab.ISOTime(time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC))
+				dueDate := gitlab.ISOTime(time.Date(2024, 7, 31, 0, 0, 0, 0, time.UTC))
+				fixed := true
+				labels := gitlab.LabelOptions{"updated", "labels"}
+				confidential := true
+				state := "closed"
+
+				expectedOpts := &gitlab.UpdateEpicOptions{
+					Title:            gitlab.Ptr("Updated Epic Title"),
+					Description:      gitlab.Ptr("Updated Description"),
+					Labels:           &labels,
+					StartDateIsFixed: &fixed,
+					StartDateFixed:   &startDate,
+					DueDateIsFixed:   &fixed,
+					DueDateFixed:     &dueDate,
+					StateEvent:       &state,
+					Confidential:     &confidential,
+				}
+
+				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
+					&gitlab.Epic{
+						ID:          123,
+						IID:         5,
+						GroupID:     456,
+						Title:       "Updated Epic Title",
+						Description: "Updated Description",
+						State:       "closed",
+						WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+							Name:     "Test User",
+						},
+						StartDate: &startDate,
+						DueDate:   &dueDate,
+						Labels:    gitlab.LabelOptions{"updated", "labels"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			want: &Epic{
+				ID:          123,
+				IID:         5,
+				GroupID:     456,
+				Title:       "Updated Epic Title",
+				Description: "Updated Description",
+				State:       "closed",
+				WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+				Author: map[string]any{
+					"id":       int64(1),
+					"username": "testuser",
+					"name":     "Test User",
+				},
+				StartDate: "2024-04-01",
+				DueDate:   "2024-07-31",
+				Labels:    []string{"updated", "labels"},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "successful update with partial options (title only)",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				Title: "Only Updating Title",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.UpdateEpicOptions{
+					Title: gitlab.Ptr("Only Updating Title"),
+				}
+
+				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
+					&gitlab.Epic{
+						ID:          123,
+						IID:         5,
+						GroupID:     456,
+						Title:       "Only Updating Title",
+						Description: "Original Description",
+						State:       "opened",
+						WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+							Name:     "Test User",
+						},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			want: &Epic{
+				ID:          123,
+				IID:         5,
+				GroupID:     456,
+				Title:       "Only Updating Title",
+				Description: "Original Description",
+				State:       "opened",
+				WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+				Author: map[string]any{
+					"id":       int64(1),
+					"username": "testuser",
+					"name":     "Test User",
+				},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "successful update setting confidential true",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				Confidential: gitlab.Ptr(true),
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.UpdateEpicOptions{
+					Confidential: gitlab.Ptr(true),
+				}
+
+				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
+					&gitlab.Epic{
+						ID:          123,
+						IID:         5,
+						GroupID:     456,
+						Title:       "Test Epic",
+						Description: "Test Description",
+						State:       "opened",
+						WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+							Name:     "Test User",
+						},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			want: &Epic{
+				ID:          123,
+				IID:         5,
+				GroupID:     456,
+				Title:       "Test Epic",
+				Description: "Test Description",
+				State:       "opened",
+				WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+				Author: map[string]any{
+					"id":       int64(1),
+					"username": "testuser",
+					"name":     "Test User",
+				},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "successful update setting confidential false",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				Confidential: gitlab.Ptr(false),
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				expectedOpts := &gitlab.UpdateEpicOptions{
+					Confidential: gitlab.Ptr(false),
+				}
+
+				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
+					&gitlab.Epic{
+						ID:          123,
+						IID:         5,
+						GroupID:     456,
+						Title:       "Test Epic",
+						Description: "Test Description",
+						State:       "opened",
+						WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+							Name:     "Test User",
+						},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			want: &Epic{
+				ID:          123,
+				IID:         5,
+				GroupID:     456,
+				Title:       "Test Epic",
+				Description: "Test Description",
+				State:       "opened",
+				WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+				Author: map[string]any{
+					"id":       int64(1),
+					"username": "testuser",
+					"name":     "Test User",
+				},
+				CreatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+				UpdatedAt: testTime.Format("2006-01-02T15:04:05Z"),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nil options",
+			epicIID: 5,
+			opts:    nil,
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrUpdateEpicOptionsRequired,
+		},
+		{
+			name:    "invalid epic IID (zero)",
+			epicIID: 0,
+			opts:    &UpdateEpicOptions{Title: "Test"},
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrEpicIIDRequired,
+		},
+		{
+			name:    "invalid epic IID (negative)",
+			epicIID: -1,
+			opts:    &UpdateEpicOptions{Title: "Test"},
+			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {},
+			want:    nil,
+			wantErr: true,
+			errType: ErrEpicIIDRequired,
+		},
+		{
+			name:    "invalid state value",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				State: "invalid",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errType: ErrInvalidEpicState,
+		},
+		{
+			name:    "invalid start date format",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				StartDate: "03/15/2024",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errType: ErrInvalidDateFormat,
+		},
+		{
+			name:    "invalid due date format",
+			epicIID: 5,
+			opts: &UpdateEpicOptions{
+				DueDate: "2024-13-45",
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errType: ErrInvalidDateFormat,
+		},
+		{
+			name:    "group not found",
+			epicIID: 5,
+			opts:    &UpdateEpicOptions{Title: "Test"},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					(*gitlab.Group)(nil), (*gitlab.Response)(nil), errors.New("404 Group Not Found"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "tier required (403 Forbidden)",
+			epicIID: 5,
+			opts:    &UpdateEpicOptions{Title: "Test"},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				epics.On("UpdateEpic", int64(456), 5, mock.Anything).Return(
+					(*gitlab.Epic)(nil), (*gitlab.Response)(nil), errors.New("403 Forbidden"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+			errType: ErrEpicsTierRequired,
+		},
+		{
+			name:    "update epic API error",
+			epicIID: 5,
+			opts:    &UpdateEpicOptions{Title: "Test"},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				epics.On("UpdateEpic", int64(456), 5, mock.Anything).Return(
+					(*gitlab.Epic)(nil), (*gitlab.Response)(nil), errors.New("API error"),
+				)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockGroups := &MockGroupsService{}
+			mockEpics := &MockEpicsService{}
+			mockGroupLabels := &MockGroupLabelsService{}
+
+			tc.setup(mockClient, mockGroups, mockEpics, mockGroupLabels)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+			got, err := app.UpdateGroupEpic("test/group", tc.epicIID, tc.opts)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errType != nil {
+					assert.ErrorIs(t, err, tc.errType)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockGroups.AssertExpectations(t)
+			mockEpics.AssertExpectations(t)
+			mockGroupLabels.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_UpdateGroupEpic_LabelValidation(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name            string
+		validateLabels  bool
+		epicLabels      []string
+		existingLabels  []*gitlab.GroupLabel
+		setup           func(*MockGitLabClient, *MockGroupsService, *MockEpicsService, *MockGroupLabelsService)
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:           "validation enabled - valid labels",
+			validateLabels: true,
+			epicLabels:     []string{"bug", "feature"},
+			existingLabels: []*gitlab.GroupLabel{
+				{Name: "bug"},
+				{Name: "feature"},
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+				client.On("GroupLabels").Return(groupLabels)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				listOpts := &gitlab.ListGroupLabelsOptions{
+					ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+					IncludeAncestorGroups: gitlab.Ptr(true),
+				}
+				groupLabels.On("ListGroupLabels", int64(456), listOpts).Return(
+					[]*gitlab.GroupLabel{
+						{Name: "bug"},
+						{Name: "feature"},
+					}, &gitlab.Response{}, nil,
+				)
+
+				labels := gitlab.LabelOptions{"bug", "feature"}
+				expectedOpts := &gitlab.UpdateEpicOptions{
+					Labels: &labels,
+				}
+
+				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
+					&gitlab.Epic{
+						ID:          123,
+						IID:         5,
+						GroupID:     456,
+						Title:       "Test Epic",
+						Description: "Test Description",
+						State:       "opened",
+						WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+							Name:     "Test User",
+						},
+						Labels:    gitlab.LabelOptions{"bug", "feature"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			wantErr: false,
+		},
+		{
+			name:           "validation enabled - invalid labels",
+			validateLabels: true,
+			epicLabels:     []string{"bug", "nonexistent"},
+			existingLabels: []*gitlab.GroupLabel{
+				{Name: "bug"},
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("GroupLabels").Return(groupLabels)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				listOpts := &gitlab.ListGroupLabelsOptions{
+					ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+					IncludeAncestorGroups: gitlab.Ptr(true),
+				}
+				groupLabels.On("ListGroupLabels", int64(456), listOpts).Return(
+					[]*gitlab.GroupLabel{
+						{Name: "bug"},
+					}, &gitlab.Response{}, nil,
+				)
+			},
+			wantErr:         true,
+			wantErrContains: "nonexistent",
+		},
+		{
+			name:           "validation disabled - invalid labels allowed",
+			validateLabels: false,
+			epicLabels:     []string{"bug", "nonexistent"},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				client.On("Groups").Return(groups)
+				client.On("Epics").Return(epics)
+
+				groups.On("GetGroup", "test/group", (*gitlab.GetGroupOptions)(nil)).Return(
+					&gitlab.Group{ID: 456}, &gitlab.Response{}, nil,
+				)
+
+				labels := gitlab.LabelOptions{"bug", "nonexistent"}
+				expectedOpts := &gitlab.UpdateEpicOptions{
+					Labels: &labels,
+				}
+
+				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
+					&gitlab.Epic{
+						ID:          123,
+						IID:         5,
+						GroupID:     456,
+						Title:       "Test Epic",
+						Description: "Test Description",
+						State:       "opened",
+						WebURL:      "https://gitlab.com/groups/test/group/-/epics/5",
+						Author: &gitlab.EpicAuthor{
+							ID:       1,
+							Username: "testuser",
+							Name:     "Test User",
+						},
+						Labels:    gitlab.LabelOptions{"bug"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					},
+					&gitlab.Response{},
+					nil,
+				)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockGitLabClient{}
+			mockGroups := &MockGroupsService{}
+			mockEpics := &MockEpicsService{}
+			mockGroupLabels := &MockGroupLabelsService{}
+
+			tc.setup(mockClient, mockGroups, mockEpics, mockGroupLabels)
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			app.ValidateLabels = tc.validateLabels
+
+			opts := &UpdateEpicOptions{
+				Labels: tc.epicLabels,
+			}
+
+			_, err := app.UpdateGroupEpic("test/group", 5, opts)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.wantErrContains != "" {
+					assert.Contains(t, err.Error(), tc.wantErrContains)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockGroups.AssertExpectations(t)
+			mockEpics.AssertExpectations(t)
+			mockGroupLabels.AssertExpectations(t)
+		})
+	}
+}
+
 func TestApp_CreateEpic_LabelValidation(t *testing.T) {
 	testTime := time.Now()
 

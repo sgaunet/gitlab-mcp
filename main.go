@@ -605,6 +605,46 @@ func setupCreateEpicTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 	s.AddTool(createEpicTool, handleCreateEpicRequest(appInstance, debugLogger))
 }
 
+// setupUpdateEpicTool creates and registers the update_epic tool.
+func setupUpdateEpicTool(s *server.MCPServer, appInstance *app.App, debugLogger *slog.Logger) {
+	updateEpicTool := mcp.NewTool("update_epic",
+		mcp.WithDescription("Update an existing epic in a GitLab group. "+
+			"Note: Epics require GitLab Premium or Ultimate tier."),
+		mcp.WithString("group_path",
+			mcp.Required(),
+			mcp.Description("GitLab group path (e.g., 'myorg' or 'parent/subgroup')"),
+		),
+		mcp.WithNumber("epic_iid",
+			mcp.Required(),
+			mcp.Description("Epic internal ID (IID) to update"),
+		),
+		mcp.WithString("title",
+			mcp.Description("Updated epic title (optional)"),
+		),
+		mcp.WithString("description",
+			mcp.Description("Updated epic description (optional)"),
+		),
+		mcp.WithArray("labels",
+			mcp.Description("Array of label names to set (optional). "+
+				"Labels must exist in the group. Set GITLAB_VALIDATE_LABELS=false to disable validation."),
+		),
+		mcp.WithString("start_date",
+			mcp.Description("Start date in YYYY-MM-DD format (optional)"),
+		),
+		mcp.WithString("due_date",
+			mcp.Description("Due date in YYYY-MM-DD format (optional)"),
+		),
+		mcp.WithString("state",
+			mcp.Description("Epic state: 'opened' or 'closed' (optional)"),
+		),
+		mcp.WithBoolean("confidential",
+			mcp.Description("Whether epic is confidential (optional)"),
+		),
+	)
+
+	s.AddTool(updateEpicTool, handleUpdateEpicRequest(appInstance, debugLogger))
+}
+
 // handleCreateEpicRequest handles the create_epic tool request.
 func handleCreateEpicRequest(
 	appInstance *app.App,
@@ -636,6 +676,55 @@ func handleCreateEpicRequest(
 		}
 
 		debugLogger.Info("Successfully created epic", "id", epic.ID, "iid", epic.IID, "group_path", groupPath)
+		return mcp.NewToolResultText(string(jsonData)), nil
+	}
+}
+
+// handleUpdateEpicRequest handles the update_epic tool request.
+func handleUpdateEpicRequest(
+	appInstance *app.App,
+	debugLogger *slog.Logger,
+) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := request.GetArguments()
+		debugLogger.Debug("Received update_epic tool request", "args", args)
+
+		// Extract and validate parameters
+		groupPath, epicIID, opts, validationErr := extractUpdateEpicParams(args, debugLogger)
+		if validationErr != nil {
+			return validationErr, nil
+		}
+
+		debugLogger.Debug("Processing update_epic request",
+			"group_path", groupPath, "epic_iid", epicIID, "opts", opts)
+
+		// Call the app method
+		epic, appErr := appInstance.UpdateGroupEpic(groupPath, epicIID, opts)
+		if appErr != nil {
+			debugLogger.Error("Failed to update epic", "error", appErr,
+				"group_path", groupPath, "epic_iid", epicIID)
+
+			if errors.Is(appErr, app.ErrEpicsTierRequired) {
+				return mcp.NewToolResultError(fmt.Sprintf(
+					"Failed to update epic: %v\n\n"+
+						"Epics are a GitLab Premium/Ultimate feature. "+
+						"See: https://docs.gitlab.com/ee/user/group/epics/",
+					appErr,
+				)), nil
+			}
+
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to update epic: %v", appErr)), nil
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(epic)
+		if err != nil {
+			debugLogger.Error("Failed to marshal epic to JSON", "error", err)
+			return mcp.NewToolResultError("Failed to format epic response"), nil
+		}
+
+		debugLogger.Info("Successfully updated epic",
+			"id", epic.ID, "iid", epic.IID, "group_path", groupPath)
 		return mcp.NewToolResultText(string(jsonData)), nil
 	}
 }
@@ -1532,6 +1621,35 @@ func extractCreateEpicParams(
 	return groupPath, opts, nil
 }
 
+// extractUpdateEpicParams extracts and validates parameters for update_epic.
+func extractUpdateEpicParams(
+	args map[string]any,
+	debugLogger *slog.Logger,
+) (string, int, *app.UpdateEpicOptions, *mcp.CallToolResult) {
+	// Extract required parameters
+	groupPath, ok := args["group_path"].(string)
+	if !ok || groupPath == "" {
+		debugLogger.Error("group_path is not a valid string", "value", args["group_path"])
+		return "", 0, nil, mcp.NewToolResultError("group_path must be a non-empty string")
+	}
+
+	epicIIDFloat, ok := args["epic_iid"].(float64)
+	if !ok {
+		debugLogger.Error("epic_iid is not a valid number", "value", args["epic_iid"])
+		return "", 0, nil, mcp.NewToolResultError("epic_iid must be a number")
+	}
+	epicIID := int(epicIIDFloat)
+	if epicIID <= 0 {
+		debugLogger.Error("epic_iid must be positive", "value", epicIID)
+		return "", 0, nil, mcp.NewToolResultError("epic_iid must be a positive integer")
+	}
+
+	// Build options with optional parameters
+	opts := buildUpdateEpicOptions(args)
+
+	return groupPath, epicIID, opts, nil
+}
+
 // extractAddIssueToEpicParams extracts and validates add_issue_to_epic parameters.
 func extractAddIssueToEpicParams(args map[string]any) (*app.AddIssueToEpicOptions, error) {
 	// Extract group_path
@@ -1602,6 +1720,65 @@ func buildCreateEpicOptions(title string, args map[string]any) *app.CreateEpicOp
 	}
 
 	return opts
+}
+
+// buildUpdateEpicOptions builds UpdateEpicOptions from request arguments.
+func buildUpdateEpicOptions(args map[string]any) *app.UpdateEpicOptions {
+	opts := &app.UpdateEpicOptions{}
+
+	// Extract string fields
+	extractUpdateEpicStringFields(opts, args)
+
+	// Extract labels
+	if labelsRaw, ok := args["labels"].([]any); ok {
+		opts.Labels = extractStringArray(labelsRaw)
+	}
+
+	// Extract confidential flag
+	extractUpdateEpicConfidential(opts, args)
+
+	return opts
+}
+
+// extractUpdateEpicStringFields extracts string fields for epic update.
+func extractUpdateEpicStringFields(opts *app.UpdateEpicOptions, args map[string]any) {
+	extractUpdateEpicBasicFields(opts, args)
+	extractUpdateEpicDateFields(opts, args)
+}
+
+// extractUpdateEpicBasicFields extracts basic string fields for epic update.
+func extractUpdateEpicBasicFields(opts *app.UpdateEpicOptions, args map[string]any) {
+	if title, ok := args["title"].(string); ok && title != "" {
+		opts.Title = title
+	}
+
+	if desc, ok := args["description"].(string); ok && desc != "" {
+		opts.Description = desc
+	}
+
+	if state, ok := args["state"].(string); ok && state != "" {
+		opts.State = state
+	}
+}
+
+// extractUpdateEpicDateFields extracts date fields for epic update.
+func extractUpdateEpicDateFields(opts *app.UpdateEpicOptions, args map[string]any) {
+	if startDate, ok := args["start_date"].(string); ok && startDate != "" {
+		opts.StartDate = startDate
+	}
+
+	if dueDate, ok := args["due_date"].(string); ok && dueDate != "" {
+		opts.DueDate = dueDate
+	}
+}
+
+// extractUpdateEpicConfidential extracts the confidential flag for epic update.
+func extractUpdateEpicConfidential(opts *app.UpdateEpicOptions, args map[string]any) {
+	if conf, exists := args["confidential"]; exists {
+		if confBool, ok := conf.(bool); ok {
+			opts.Confidential = &confBool
+		}
+	}
 }
 
 // handleCreateEpicError handles errors from CreateGroupEpic.
@@ -1700,10 +1877,11 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 		setupUpdateProjectTopicsTool(s, appInstance, debugLogger)
 	}
 
-	// Epics category (3 tools)
+	// Epics category (4 tools)
 	if flags.Epics {
 		setupListEpicsTool(s, appInstance, debugLogger)
 		setupCreateEpicTool(s, appInstance, debugLogger)
+		setupUpdateEpicTool(s, appInstance, debugLogger)
 		setupAddIssueToEpicTool(s, appInstance, debugLogger)
 	}
 
