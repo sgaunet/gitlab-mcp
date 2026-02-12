@@ -76,6 +76,12 @@ func (m *MockGitLabClient) Jobs() JobsService {
 	return result
 }
 
+func (m *MockGitLabClient) GroupLabels() GroupLabelsService {
+	args := m.Called()
+	result, _ := args.Get(0).(GroupLabelsService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -169,6 +175,25 @@ func (m *MockLabelsService) ListLabels(
 ) ([]*gitlab.Label, *gitlab.Response, error) {
 	args := m.Called(pid, opt)
 	labels, _ := args.Get(0).([]*gitlab.Label)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return labels, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockGroupLabelsService is a mock implementation of GroupLabelsService.
+type MockGroupLabelsService struct {
+	mock.Mock
+}
+
+func (m *MockGroupLabelsService) ListGroupLabels(
+	gid any,
+	opt *gitlab.ListGroupLabelsOptions,
+) ([]*gitlab.GroupLabel, *gitlab.Response, error) {
+	args := m.Called(gid, opt)
+	if args.Get(0) == nil {
+		response, _ := args.Get(1).(*gitlab.Response)
+		return nil, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+	}
+	labels, _ := args.Get(0).([]*gitlab.GroupLabel)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return labels, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }

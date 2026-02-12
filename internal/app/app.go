@@ -832,30 +832,10 @@ func (a *App) UpdateProjectIssue(projectPath string, issueIID int64, opts *Updat
 	}
 	projectID := project.ID
 
-	// Create GitLab API options - only set fields that are provided
-	updateOpts := &gitlab.UpdateIssueOptions{}
-
-	if opts.Title != "" {
-		updateOpts.Title = &opts.Title
-	}
-
-	if opts.Description != "" {
-		updateOpts.Description = &opts.Description
-	}
-
-	if opts.State != "" {
-		updateOpts.StateEvent = &opts.State
-	}
-
-	// Add labels if provided
-	if len(opts.Labels) > 0 {
-		labels := gitlab.LabelOptions(opts.Labels)
-		updateOpts.Labels = &labels
-	}
-
-	// Add assignees if provided
-	if len(opts.Assignees) > 0 {
-		updateOpts.AssigneeIDs = &opts.Assignees
+	// Build update options
+	updateOpts, err := a.buildUpdateIssueOptions(projectID, projectPath, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	// Call GitLab API
@@ -1121,6 +1101,15 @@ func (a *App) CreateGroupEpic(groupPath string, opts *CreateEpicOptions) (*Epic,
 	if err != nil {
 		return nil, err
 	}
+
+	// Validate labels if validation is enabled and labels are provided
+	if a.ValidateLabels && len(opts.Labels) > 0 {
+		if err := a.validateGroupLabels(groupID, groupPath, opts.Labels); err != nil {
+			return nil, err
+		}
+	}
+
+	a.logger.Debug("Creating epic", "group_id", groupID, "title", opts.Title)
 
 	// Build GitLab API options
 	createOpts := a.buildCreateEpicOptions(opts, startDate, dueDate)
@@ -1585,6 +1574,48 @@ func (a *App) DownloadJobTrace(projectPath string, opts *DownloadJobTraceOptions
 	}, nil
 }
 
+// buildUpdateIssueOptions constructs GitLab API update options from the provided options.
+// It returns an error if label validation is enabled and labels are invalid.
+func (a *App) buildUpdateIssueOptions(
+	projectID int64,
+	projectPath string,
+	opts *UpdateIssueOptions,
+) (*gitlab.UpdateIssueOptions, error) {
+	updateOpts := &gitlab.UpdateIssueOptions{}
+
+	if opts.Title != "" {
+		updateOpts.Title = &opts.Title
+	}
+
+	if opts.Description != "" {
+		updateOpts.Description = &opts.Description
+	}
+
+	if opts.State != "" {
+		updateOpts.StateEvent = &opts.State
+	}
+
+	// Add labels if provided
+	if len(opts.Labels) > 0 {
+		labels := gitlab.LabelOptions(opts.Labels)
+		updateOpts.Labels = &labels
+
+		// Validate labels if validation is enabled
+		if a.ValidateLabels {
+			if err := a.validateLabels(projectID, projectPath, opts.Labels); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Add assignees if provided
+	if len(opts.Assignees) > 0 {
+		updateOpts.AssigneeIDs = &opts.Assignees
+	}
+
+	return updateOpts, nil
+}
+
 // validateOutputPath validates and sanitizes the output path for trace files.
 func (a *App) validateOutputPath(outputPath string) (string, error) {
 	// Check for path traversal patterns in the original input
@@ -1907,5 +1938,66 @@ func (a *App) validateLabels(projectID int64, projectPath string, requestedLabel
 	}
 
 	a.logger.Debug("All requested labels are valid", "project_id", projectID)
+	return nil
+}
+
+// validateGroupLabels checks if the requested labels exist in the group.
+func (a *App) validateGroupLabels(groupID int64, groupPath string, requestedLabels []string) error {
+	if len(requestedLabels) == 0 {
+		return nil // No labels to validate
+	}
+
+	a.logger.Debug("Validating group labels", "group_id", groupID, "requested_labels", requestedLabels)
+
+	// Get existing group labels
+	listOpts := &gitlab.ListGroupLabelsOptions{
+		ListOptions: gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+	}
+
+	groupLabels, _, err := a.client.GroupLabels().ListGroupLabels(groupID, listOpts)
+	if err != nil {
+		a.logger.Error("Failed to retrieve group labels for validation", "error", err, "group_id", groupID)
+		return fmt.Errorf("failed to validate labels for group %s: %w", groupPath, err)
+	}
+
+	// Create a map of existing label names (case-insensitive)
+	existingLabelMap := make(map[string]bool)
+	existingLabelNames := make([]string, 0, len(groupLabels))
+	for _, label := range groupLabels {
+		existingLabelMap[strings.ToLower(label.Name)] = true
+		existingLabelNames = append(existingLabelNames, label.Name)
+	}
+
+	// Check which requested labels don't exist
+	var missingLabels []string
+	for _, requestedLabel := range requestedLabels {
+		if !existingLabelMap[strings.ToLower(requestedLabel)] {
+			missingLabels = append(missingLabels, requestedLabel)
+		}
+	}
+
+	if len(missingLabels) > 0 {
+		a.logger.Warn("Group labels not found", "missing_labels", missingLabels, "group_path", groupPath)
+
+		// Format error message with missing labels and available labels
+		var errorMsg strings.Builder
+		fmt.Fprintf(&errorMsg, "The following labels do not exist in group '%s':\n", groupPath)
+		for _, label := range missingLabels {
+			fmt.Fprintf(&errorMsg, "- '%s'\n", label)
+		}
+
+		if len(existingLabelNames) > 0 {
+			errorMsg.WriteString("\nAvailable labels in this group:\n- ")
+			errorMsg.WriteString(strings.Join(existingLabelNames, ", "))
+		} else {
+			errorMsg.WriteString("\nThis group has no labels defined.")
+		}
+
+		errorMsg.WriteString("\n\nTo disable label validation, set GITLAB_VALIDATE_LABELS=false")
+
+		return fmt.Errorf("%w: %s", ErrLabelValidationFailed, errorMsg.String())
+	}
+
+	a.logger.Debug("All requested group labels are valid", "group_id", groupID)
 	return nil
 }

@@ -69,6 +69,11 @@ func (g *GitLabClientWrapper) Jobs() JobsService {
 	return &JobsServiceWrapper{service: g.client.Jobs}
 }
 
+// GroupLabels returns the GroupLabels service.
+func (g *GitLabClientWrapper) GroupLabels() GroupLabelsService {
+	return &GroupLabelsServiceWrapper{service: g.client.GroupLabels}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -226,6 +231,22 @@ func (g *GroupsServiceWrapper) GetGroup(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return group, resp, nil
+}
+
+// GroupLabelsServiceWrapper wraps the real GroupLabels service.
+type GroupLabelsServiceWrapper struct {
+	service gitlab.GroupLabelsServiceInterface
+}
+
+func (g *GroupLabelsServiceWrapper) ListGroupLabels(
+	gid any,
+	opt *gitlab.ListGroupLabelsOptions,
+) ([]*gitlab.GroupLabel, *gitlab.Response, error) {
+	labels, resp, err := g.service.ListGroupLabels(gid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return labels, resp, nil
 }
 
 // EpicsServiceWrapper wraps the real Epics service.
