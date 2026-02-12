@@ -1,44 +1,38 @@
 # https://taskfile.dev
 version: '3'
+includes:
+  dev: ./Taskfile_dev.yml
+
 vars:
   BINFILE: gitlab-mcp
 
 tasks:
   default:
-    desc: "List all tasks"
+    desc: "List tasks"
+    preconditions:
+      - test -f .git/hooks/pre-commit
     cmds:
       - task -a
 
-  build:
-    desc: "Build the binary"
+  check-before-commit:
+    desc: "Run checks before committing"
+    preconditions:
+      - test -f .git/hooks/pre-commit
+    deps:
+      - test
+      - snapshot
     cmds:
-      - go mod download
-      - CGO_ENABLED=0 go build -o {{.BINFILE}} .
+      - task: lint
 
   lint:
-    desc: "Run linter"
+    desc: "Run golangci-lint"
     cmds:
       - golangci-lint run
 
-  # image:
-  #   desc: "Build/push the docker image version latest"
-  #   cmds:
-  #     - docker build . -t ghcr.io/sgaunet/{{.BINFILE}}:latest --push
-
-  snapshot:
-    desc: "Create a snapshot release"
-    cmds:
-      - GITLAB_TOKEN="" goreleaser --clean --snapshot
-
-  release:
-    desc: "Create a release"
-    cmds:
-      - GITLAB_TOKEN="" goreleaser --clean
-
   test:
-    desc: "Run unit tests"
+    desc: "Run unit tests with race detection"
     cmds:
-      - go test ./internal/... -v
+      - go test -count=2 -race ./...
 
   coverage:
     desc: "Generate coverage report with percentage"
@@ -48,3 +42,32 @@ tasks:
       - go tool cover -func profile.cov | grep '^total{{":"}}' | awk '{print $3}'
       - rm -f profile.cov
 
+  build:
+    desc: "Build the binary"
+    cmds:
+      - go mod download
+      - CGO_ENABLED=0 go build -o {{.BINFILE}} .
+
+  image:
+    desc: "Build and push Docker image"
+    deps:
+      - build
+    cmds:
+      - docker build --no-cache --build-arg VERSION=development . -t ghcr.io/sgaunet/{{.BINFILE}}:latest
+      - docker push ghcr.io/sgaunet/{{.BINFILE}}:latest
+
+  doc:
+    desc: "Start godoc documentation server"
+    cmds:
+      - echo http://localhost:6060
+      - godoc -http=:6060
+
+  snapshot:
+    desc: "Create snapshot release with goreleaser"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --snapshot
+
+  release:
+    desc: "Create production release with goreleaser"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean
