@@ -276,6 +276,18 @@ func (e *EpicsServiceWrapper) CreateEpic(
 	return epic, resp, nil
 }
 
+func (e *EpicsServiceWrapper) UpdateEpic(
+	gid any,
+	epic int,
+	opt *gitlab.UpdateEpicOptions,
+) (*gitlab.Epic, *gitlab.Response, error) {
+	updatedEpic, resp, err := e.service.UpdateEpic(gid, int64(epic), opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return updatedEpic, resp, nil
+}
+
 // EpicIssuesServiceWrapper wraps the real EpicIssues service.
 type EpicIssuesServiceWrapper struct {
 	service gitlab.EpicIssuesServiceInterface

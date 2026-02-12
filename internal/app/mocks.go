@@ -277,6 +277,21 @@ func (m *MockEpicsService) CreateEpic(
 	return epic, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockEpicsService) UpdateEpic(
+	gid any,
+	epic int,
+	opt *gitlab.UpdateEpicOptions,
+) (*gitlab.Epic, *gitlab.Response, error) {
+	args := m.Called(gid, epic, opt)
+	if args.Get(0) == nil {
+		response, _ := args.Get(1).(*gitlab.Response)
+		return nil, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+	}
+	updatedEpic, _ := args.Get(0).(*gitlab.Epic)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return updatedEpic, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 // MockEpicIssuesService is a mock implementation of EpicIssuesService.
 type MockEpicIssuesService struct {
 	mock.Mock
