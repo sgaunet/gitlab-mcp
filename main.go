@@ -466,17 +466,15 @@ func handleListLabelsRequest(
 // extractListLabelsOptions extracts list labels options from arguments.
 func extractListLabelsOptions(args map[string]any) *app.ListLabelsOptions {
 	opts := &app.ListLabelsOptions{
-		WithCounts:            false,        // default
-		IncludeAncestorGroups: false,        // default
-		Limit:                 defaultLimit, // default
+		Limit: defaultLimit, // default
 	}
 
 	if withCounts, ok := args["with_counts"].(bool); ok {
-		opts.WithCounts = withCounts
+		opts.WithCounts = &withCounts
 	}
 
 	if includeAncestorGroups, ok := args["include_ancestor_groups"].(bool); ok {
-		opts.IncludeAncestorGroups = includeAncestorGroups
+		opts.IncludeAncestorGroups = &includeAncestorGroups
 	}
 
 	if search, ok := args["search"].(string); ok && search != "" {
