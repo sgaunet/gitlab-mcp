@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/gitlab-org/api/client-go"
 )
@@ -1086,7 +1087,8 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 
 			tt.setup(mockClient, mockProjects, mockIssues)
 
-			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			// Disable validation for existing tests (validation is tested separately)
+			app := NewWithClientAndValidation("token", "https://gitlab.com/", mockClient, false)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
 
 			result, err := app.UpdateProjectIssue("test/project", tt.issueIID, tt.opts)
@@ -1105,6 +1107,140 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 		})
 	}
 }
+
+func TestApp_UpdateProjectIssue_LabelValidation(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name            string
+		validateLabels  bool
+		issueLabels     []string
+		existingLabels  []*gitlab.Label
+		setup           func(*MockGitLabClient, *MockProjectsService, *MockIssuesService, *MockLabelsService)
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:           "validation enabled - valid labels",
+			validateLabels: true,
+			issueLabels:    []string{"bug", "priority-high"},
+			existingLabels: []*gitlab.Label{
+				{ID: 1, Name: "bug"},
+				{ID: 2, Name: "priority-high"},
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				// Mock GetProject
+				projects.On("GetProject", "myorg/myproject", (*gitlab.GetProjectOptions)(nil)).
+					Return(&gitlab.Project{ID: 123, PathWithNamespace: "myorg/myproject"}, &gitlab.Response{}, nil)
+				// Mock ListLabels for validation
+				labels.On("ListLabels", int64(123), mock.MatchedBy(func(opt *gitlab.ListLabelsOptions) bool {
+					return opt.PerPage == maxLabelsPerPage
+				})).Return([]*gitlab.Label{
+					{ID: 1, Name: "bug"},
+					{ID: 2, Name: "priority-high"},
+				}, &gitlab.Response{}, nil)
+				// Mock UpdateIssue
+				issues.On("UpdateIssue", int64(123), int64(1), mock.Anything).
+					Return(&gitlab.Issue{
+						ID:        1,
+						IID:       1,
+						Title:     "Test issue",
+						State:     "opened",
+						Labels:    gitlab.Labels{"bug", "priority-high"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					}, &gitlab.Response{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:           "validation enabled - invalid labels",
+			validateLabels: true,
+			issueLabels:    []string{"nonexistent"},
+			existingLabels: []*gitlab.Label{
+				{ID: 1, Name: "bug"},
+				{ID: 2, Name: "priority-high"},
+			},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				// Mock GetProject
+				projects.On("GetProject", "myorg/myproject", (*gitlab.GetProjectOptions)(nil)).
+					Return(&gitlab.Project{ID: 123, PathWithNamespace: "myorg/myproject"}, &gitlab.Response{}, nil)
+				// Mock ListLabels for validation
+				labels.On("ListLabels", int64(123), mock.Anything).Return([]*gitlab.Label{
+					{ID: 1, Name: "bug"},
+					{ID: 2, Name: "priority-high"},
+				}, &gitlab.Response{}, nil)
+				// UpdateIssue should NOT be called
+			},
+			wantErr:         true,
+			wantErrContains: "do not exist",
+		},
+		{
+			name:           "validation disabled - invalid labels allowed",
+			validateLabels: false,
+			issueLabels:    []string{"nonexistent"},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, issues *MockIssuesService, labels *MockLabelsService) {
+				// Mock GetProject
+				projects.On("GetProject", "myorg/myproject", (*gitlab.GetProjectOptions)(nil)).
+					Return(&gitlab.Project{ID: 123, PathWithNamespace: "myorg/myproject"}, &gitlab.Response{}, nil)
+				// ListLabels should NOT be called
+				// Mock UpdateIssue (GitLab will ignore invalid labels)
+				issues.On("UpdateIssue", int64(123), int64(1), mock.Anything).
+					Return(&gitlab.Issue{
+						ID:        1,
+						IID:       1,
+						Title:     "Test issue",
+						State:     "opened",
+						Labels:    gitlab.Labels{}, // GitLab ignores invalid labels
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					}, &gitlab.Response{}, nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := new(MockGitLabClient)
+			mockProjects := new(MockProjectsService)
+			mockIssues := new(MockIssuesService)
+			mockLabels := new(MockLabelsService)
+
+			mockClient.On("Projects").Return(mockProjects)
+			// Only set up Issues and Labels if they will be used
+			if !tt.wantErr || tt.validateLabels {
+				mockClient.On("Issues").Return(mockIssues).Maybe()
+			}
+			if tt.validateLabels {
+				mockClient.On("Labels").Return(mockLabels).Maybe()
+			}
+
+			tt.setup(mockClient, mockProjects, mockIssues, mockLabels)
+
+			app := NewWithClientAndValidation("token", "https://gitlab.com/", mockClient, tt.validateLabels)
+
+			opts := &UpdateIssueOptions{
+				Labels: tt.issueLabels,
+			}
+
+			_, err := app.UpdateProjectIssue("myorg/myproject", 1, opts)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantErrContains != "" {
+					assert.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockProjects.AssertExpectations(t)
+		})
+	}
+}
+
 func TestApp_AddIssueNote(t *testing.T) {
 	testTime := time.Now()
 
@@ -1985,7 +2121,8 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 
 			tt.setup(mockClient, mockGroups, mockEpics)
 
-			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+			// Disable validation for existing tests (validation is tested separately)
+			app := NewWithClientAndValidation("token", "https://gitlab.com/", mockClient, false)
 			app.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
 			got, err := app.CreateGroupEpic("test/group", tt.opts)
@@ -2010,6 +2147,226 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 			mockClient.AssertExpectations(t)
 			mockGroups.AssertExpectations(t)
 			mockEpics.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_CreateEpic_LabelValidation(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name            string
+		validateLabels  bool
+		epicLabels      []string
+		existingLabels  []*gitlab.GroupLabel
+		setup           func(*MockGitLabClient, *MockGroupsService, *MockEpicsService, *MockGroupLabelsService)
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:           "validation enabled - valid labels",
+			validateLabels: true,
+			epicLabels:     []string{"roadmap", "high-priority"},
+			existingLabels: []*gitlab.GroupLabel{
+				{ID: 1, Name: "roadmap"},
+				{ID: 2, Name: "high-priority"},
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				// Mock GetGroup
+				groups.On("GetGroup", "myorg", (*gitlab.GetGroupOptions)(nil)).
+					Return(&gitlab.Group{ID: 456, FullPath: "myorg"}, &gitlab.Response{}, nil)
+				// Mock ListGroupLabels for validation
+				groupLabels.On("ListGroupLabels", int64(456), mock.MatchedBy(func(opt *gitlab.ListGroupLabelsOptions) bool {
+					return opt.PerPage == maxLabelsPerPage
+				})).Return([]*gitlab.GroupLabel{
+					{ID: 1, Name: "roadmap"},
+					{ID: 2, Name: "high-priority"},
+				}, &gitlab.Response{}, nil)
+				// Mock CreateEpic
+				epics.On("CreateEpic", int64(456), mock.Anything).
+					Return(&gitlab.Epic{
+						ID:        1,
+						IID:       1,
+						GroupID:   456,
+						Title:     "Test Epic",
+						State:     "opened",
+						Labels:    []string{"roadmap", "high-priority"},
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					}, &gitlab.Response{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:           "validation enabled - invalid labels",
+			validateLabels: true,
+			epicLabels:     []string{"invalid-label"},
+			existingLabels: []*gitlab.GroupLabel{
+				{ID: 1, Name: "roadmap"},
+			},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				// Mock GetGroup
+				groups.On("GetGroup", "myorg", (*gitlab.GetGroupOptions)(nil)).
+					Return(&gitlab.Group{ID: 456, FullPath: "myorg"}, &gitlab.Response{}, nil)
+				// Mock ListGroupLabels for validation
+				groupLabels.On("ListGroupLabels", int64(456), mock.Anything).Return([]*gitlab.GroupLabel{
+					{ID: 1, Name: "roadmap"},
+				}, &gitlab.Response{}, nil)
+				// CreateEpic should NOT be called
+			},
+			wantErr:         true,
+			wantErrContains: "do not exist",
+		},
+		{
+			name:           "validation disabled - invalid labels allowed",
+			validateLabels: false,
+			epicLabels:     []string{"invalid-label"},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+				// Mock GetGroup
+				groups.On("GetGroup", "myorg", (*gitlab.GetGroupOptions)(nil)).
+					Return(&gitlab.Group{ID: 456, FullPath: "myorg"}, &gitlab.Response{}, nil)
+				// ListGroupLabels should NOT be called
+				// Mock CreateEpic (GitLab will ignore invalid labels)
+				epics.On("CreateEpic", int64(456), mock.Anything).
+					Return(&gitlab.Epic{
+						ID:        1,
+						IID:       1,
+						GroupID:   456,
+						Title:     "Test Epic",
+						State:     "opened",
+						Labels:    []string{}, // GitLab ignores invalid labels
+						CreatedAt: &testTime,
+						UpdatedAt: &testTime,
+					}, &gitlab.Response{}, nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := new(MockGitLabClient)
+			mockGroups := new(MockGroupsService)
+			mockEpics := new(MockEpicsService)
+			mockGroupLabels := new(MockGroupLabelsService)
+
+			mockClient.On("Groups").Return(mockGroups)
+			// Only set up Epics and GroupLabels if they will be used
+			if !tt.wantErr || tt.validateLabels {
+				mockClient.On("Epics").Return(mockEpics).Maybe()
+			}
+			if tt.validateLabels {
+				mockClient.On("GroupLabels").Return(mockGroupLabels).Maybe()
+			}
+
+			tt.setup(mockClient, mockGroups, mockEpics, mockGroupLabels)
+
+			app := NewWithClientAndValidation("token", "https://gitlab.com/", mockClient, tt.validateLabels)
+
+			opts := &CreateEpicOptions{
+				Title:  "Test Epic",
+				Labels: tt.epicLabels,
+			}
+
+			_, err := app.CreateGroupEpic("myorg", opts)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantErrContains != "" {
+					assert.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockGroups.AssertExpectations(t)
+		})
+	}
+}
+
+func TestApp_validateGroupLabels(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestedLabels []string
+		existingLabels  []*gitlab.GroupLabel
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:            "valid labels",
+			requestedLabels: []string{"roadmap", "high-priority"},
+			existingLabels: []*gitlab.GroupLabel{
+				{Name: "roadmap"},
+				{Name: "high-priority"},
+				{Name: "low-priority"},
+			},
+			wantErr: false,
+		},
+		{
+			name:            "case insensitive matching",
+			requestedLabels: []string{"ROADMAP", "High-Priority"},
+			existingLabels: []*gitlab.GroupLabel{
+				{Name: "roadmap"},
+				{Name: "high-priority"},
+			},
+			wantErr: false,
+		},
+		{
+			name:            "missing labels",
+			requestedLabels: []string{"nonexistent"},
+			existingLabels: []*gitlab.GroupLabel{
+				{Name: "roadmap"},
+			},
+			wantErr:         true,
+			wantErrContains: "do not exist",
+		},
+		{
+			name:            "empty requested labels",
+			requestedLabels: []string{},
+			existingLabels: []*gitlab.GroupLabel{
+				{Name: "roadmap"},
+			},
+			wantErr: false,
+		},
+		{
+			name:            "no existing labels",
+			requestedLabels: []string{"any-label"},
+			existingLabels:  []*gitlab.GroupLabel{},
+			wantErr:         true,
+			wantErrContains: "has no labels defined",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := new(MockGitLabClient)
+			mockGroupLabels := new(MockGroupLabelsService)
+
+			// Only set up GroupLabels if requestedLabels is not empty
+			if len(tt.requestedLabels) > 0 {
+				mockClient.On("GroupLabels").Return(mockGroupLabels)
+				mockGroupLabels.On("ListGroupLabels", int64(456), mock.Anything).
+					Return(tt.existingLabels, &gitlab.Response{}, nil)
+			}
+
+			app := NewWithClient("token", "https://gitlab.com/", mockClient)
+
+			err := app.validateGroupLabels(456, "myorg", tt.requestedLabels)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantErrContains != "" {
+					assert.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockClient.AssertExpectations(t)
+			if len(tt.requestedLabels) > 0 {
+				mockGroupLabels.AssertExpectations(t)
+			}
 		})
 	}
 }

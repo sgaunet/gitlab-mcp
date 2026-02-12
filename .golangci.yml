@@ -22,3 +22,4 @@ linters:
     - revive
     - ireturn
     - misspell
+    - interfacebloat  # Gateway interfaces are a valid pattern for DI

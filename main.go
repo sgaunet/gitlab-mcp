@@ -269,7 +269,8 @@ func setupUpdateIssueTool(s *server.MCPServer, appInstance *app.App, debugLogger
 			mcp.Description("Issue state: 'opened' or 'closed'"),
 		),
 		mcp.WithArray("labels",
-			mcp.Description("Array of labels to assign to the issue"),
+			mcp.Description("Array of labels to assign to the issue. Labels must exist in the project. "+
+				"Use list_labels tool to see available labels. Set GITLAB_VALIDATE_LABELS=false to disable validation."),
 		),
 		mcp.WithArray("assignees",
 			mcp.Description("Array of user IDs to assign to the issue"),
@@ -589,7 +590,8 @@ func setupCreateEpicTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 			mcp.Description("Epic description (optional)"),
 		),
 		mcp.WithArray("labels",
-			mcp.Description("Array of label names (optional)"),
+			mcp.Description("Array of label names (optional). Labels must exist in the group. "+
+				"Set GITLAB_VALIDATE_LABELS=false to disable validation."),
 		),
 		mcp.WithString("start_date",
 			mcp.Description("Start date in YYYY-MM-DD format (optional)"),

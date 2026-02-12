@@ -42,6 +42,11 @@ type LabelsService interface {
 	ListLabels(pid any, opt *gitlab.ListLabelsOptions) ([]*gitlab.Label, *gitlab.Response, error)
 }
 
+// GroupLabelsService interface for GitLab Group Labels operations.
+type GroupLabelsService interface {
+	ListGroupLabels(gid any, opt *gitlab.ListGroupLabelsOptions) ([]*gitlab.GroupLabel, *gitlab.Response, error)
+}
+
 // UsersService interface for GitLab Users operations.
 type UsersService interface {
 	CurrentUser() (*gitlab.User, *gitlab.Response, error)
@@ -95,6 +100,7 @@ type GitLabClient interface {
 	Projects() ProjectsService
 	Issues() IssuesService
 	Labels() LabelsService
+	GroupLabels() GroupLabelsService
 	Users() UsersService
 	Notes() NotesService
 	Groups() GroupsService
