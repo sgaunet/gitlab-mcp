@@ -380,6 +380,76 @@ type DownloadJobTraceResult struct {
 	SavedAt    string `json:"saved_at"`    // ISO 8601 timestamp
 }
 
+// MergeRequest represents a GitLab merge request.
+type MergeRequest struct {
+	ID             int64          `json:"id"`
+	IID            int64          `json:"iid"`
+	Title          string         `json:"title"`
+	Description    string         `json:"description"`
+	State          string         `json:"state"`
+	SourceBranch   string         `json:"source_branch"`
+	TargetBranch   string         `json:"target_branch"`
+	Author         map[string]any `json:"author"`
+	Assignees      []map[string]any `json:"assignees,omitempty"`
+	Reviewers      []map[string]any `json:"reviewers,omitempty"`
+	Labels         []string       `json:"labels"`
+	WebURL         string         `json:"web_url"`
+	MergeStatus    string         `json:"merge_status"`
+	Draft          bool           `json:"draft"`
+	WorkInProgress bool           `json:"work_in_progress"`
+	CreatedAt      string         `json:"created_at"`
+	UpdatedAt      string         `json:"updated_at"`
+}
+
+// ListMergeRequestsOptions contains options for listing merge requests.
+type ListMergeRequestsOptions struct {
+	State  string   // opened, closed, locked, merged
+	Labels []string // Filter by labels
+	Author string   // Filter by author username
+	Search string   // Search in title and description
+	Limit  int64    // Max results to return
+}
+
+// CreateMergeRequestOptions contains options for creating a merge request.
+type CreateMergeRequestOptions struct {
+	Title        string   // Required
+	SourceBranch string   // Required
+	TargetBranch string   // Required
+	Description  string   // Optional
+	Labels       []string // Optional
+	AssigneeIDs  []int64  // Optional
+	ReviewerIDs  []int64  // Optional
+}
+
+// UpdateMergeRequestOptions contains options for updating a merge request.
+type UpdateMergeRequestOptions struct {
+	Title       string   // Optional
+	Description string   // Optional
+	State       string   // Optional: opened, closed
+	Labels      []string // Optional
+	AssigneeIDs []int64  // Optional
+	ReviewerIDs []int64  // Optional
+}
+
+// MergeMergeRequestOptions contains options for merging a merge request.
+type MergeMergeRequestOptions struct {
+	MergeCommitMessage       string // Optional
+	SquashCommitMessage      string // Optional
+	Squash                   bool   // Optional
+	ShouldRemoveSourceBranch bool   // Optional
+	MergeWhenPipelineSucceeds bool  // Optional
+}
+
+// AddMergeRequestNoteOptions contains options for adding a note to a merge request.
+type AddMergeRequestNoteOptions struct {
+	Body string // Required
+}
+
+// ApproveMergeRequestOptions contains options for approving a merge request.
+type ApproveMergeRequestOptions struct {
+	SHA string // Optional: specific SHA to approve
+}
+
 // parseLabels splits comma-separated labels and trims spaces.
 func parseLabels(labels string) []string {
 	parts := strings.Split(labels, ",")

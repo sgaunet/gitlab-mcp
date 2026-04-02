@@ -21,6 +21,14 @@ This is a Model Context Protocol (MCP) server that provides GitLab integration t
 - `list_pipeline_jobs`: Lists all jobs for a GitLab pipeline with filtering options (status, stage)
 - `get_job_log`: Retrieves complete log output for a specific CI/CD job with job metadata
 - `download_job_trace`: Downloads CI/CD job logs to local files for offline analysis and archiving
+- `list_merge_requests`: Lists merge requests for a GitLab project with filtering options (state, labels, author, search)
+- `create_merge_request`: Creates a new merge request with title, source/target branches, description, labels, assignees, and reviewers
+- `get_merge_request`: Gets details of a specific merge request by IID
+- `update_merge_request`: Updates an existing merge request (title, description, state, labels, assignees, reviewers)
+- `merge_merge_request`: Merges an approved merge request with squash and remove-source-branch options
+- `get_merge_request_diff`: Gets the unified diff for a merge request showing actual code changes per file
+- `approve_merge_request`: Approves a merge request with optional SHA verification
+- `add_merge_request_note`: Adds a comment/note to a merge request
 
 ## Architecture
 
@@ -38,6 +46,14 @@ The codebase follows a clean architecture pattern with clear separation of conce
   - Public methods for each tool operation (e.g., `ListProjectIssues`, `CreateProjectIssue`)
   - Private helper methods for validation
   - Interface-based design for testability via dependency injection
+
+- **internal/app/merge_requests.go**: Business logic for merge request operations
+  - CRUD operations, merging, diffs, approvals, and notes for merge requests
+  - Converts GitLab API types to internal MergeRequest representation
+
+- **merge_request_tools.go**: MCP tool definitions and handlers for merge request operations
+  - Tool registration functions (`setup*Tool()`) for all 8 merge request tools
+  - Parameter parsing helpers (`parseListMROptions`, `parseUpdateMROptions`, `parseLabels`, `parseIDArray`)
 
 - **internal/app/interfaces.go**: Interface definitions for GitLab client abstraction
   - Defines service interfaces matching GitLab API structure
@@ -185,6 +201,35 @@ Download the log for job 11111 from the develop branch to /tmp/build.log
 
 The tool handles the resolution automatically - no need to look up user IDs or milestone IDs manually.
 
+**Managing merge requests:**
+```
+List open merge requests for myorg/myproject
+```
+
+```
+Create a merge request from feature-branch to main in myorg/myproject with title "Add user authentication"
+```
+
+```
+Get details of merge request 42 in myorg/myproject
+```
+
+```
+Get the diff for merge request 42 in myorg/myproject
+```
+
+```
+Approve merge request 42 in myorg/myproject
+```
+
+```
+Merge merge request 42 in myorg/myproject with squash enabled and remove source branch
+```
+
+```
+Add a comment to merge request 42 in myorg/myproject: "LGTM, approved!"
+```
+
 ## CLI Flags for Token Optimization
 
 The server supports CLI flags to disable tool categories, reducing token consumption for specialized use cases:
@@ -196,22 +241,28 @@ The server supports CLI flags to disable tool categories, reducing token consump
 - `--no-project-metadata` - Disable project metadata tools (4 tools)
 - `--no-epics` - Disable epic management tools (3 tools)
 - `--no-pipelines` - Disable CI/CD pipeline tools (4 tools)
+- `--no-merge-requests` - Disable merge request management tools (8 tools)
 
 ### Usage Examples
 
 **CI/CD debugging agent (only pipeline tools):**
 ```bash
-gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
+gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics --no-merge-requests
 ```
 
 **Documentation agent (only project metadata):**
 ```bash
-gitlab-mcp --no-issues --no-labels --no-epics --no-pipelines
+gitlab-mcp --no-issues --no-labels --no-epics --no-pipelines --no-merge-requests
 ```
 
 **Issue triage bot (only issues and labels):**
 ```bash
-gitlab-mcp --no-project-metadata --no-epics --no-pipelines
+gitlab-mcp --no-project-metadata --no-epics --no-pipelines --no-merge-requests
+```
+
+**MR review agent (only merge request and pipeline tools):**
+```bash
+gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
 ```
 
 ### Configuration with Claude Code
@@ -300,7 +351,7 @@ Located in `internal/app/app_test.go` and `internal/logger/logger_test.go`, thes
 The codebase uses dependency injection via interfaces for testability:
 - **Interfaces**: Defined in `internal/app/interfaces.go` for GitLab client abstraction
   - `GitLabClient`: Main interface wrapping all GitLab service interfaces
-  - Service-specific interfaces: `ProjectsService`, `IssuesService`, `LabelsService`, `UsersService`, `NotesService`, `MergeRequestsService`, `MilestonesService`
+  - Service-specific interfaces: `ProjectsService`, `IssuesService`, `LabelsService`, `UsersService`, `NotesService`, `MergeRequestsService`, `MergeRequestApprovalsService`, `MilestonesService`
 - **Production Implementation**: `internal/app/client.go` wraps the real GitLab client
 - **Mocks**: Generated in `internal/app/mocks.go` using testify/mock
 - **Test Constructor**: Use `NewWithClient()` in tests to inject mocked GitLabClient
@@ -370,7 +421,13 @@ The server uses the official GitLab Go client to interact with GitLab's REST API
 - **Labels List**: `/projects/:id/labels` endpoint for label retrieval
 - **Filtering**: Supports state filtering, label filtering, search, and pagination
 - **Deduplication**: Group issues are filtered to exclude duplicates from the current project
-- **Response Format**: Returns structured JSON with issue, label, note, and project metadata
+- **Merge Requests List**: `/projects/:id/merge_requests` endpoint for MR retrieval
+- **Merge Request CRUD**: `/projects/:id/merge_requests/:mr_iid` endpoint for get/create/update operations
+- **Merge Request Merge**: `/projects/:id/merge_requests/:mr_iid/merge` endpoint for accepting MRs
+- **Merge Request Diffs**: `/projects/:id/merge_requests/:mr_iid/diffs` endpoint for file-level diffs
+- **Merge Request Approvals**: `/projects/:id/merge_requests/:mr_iid/approve` endpoint for approvals
+- **Merge Request Notes**: `/projects/:id/merge_requests/:mr_iid/notes` endpoint for comments
+- **Response Format**: Returns structured JSON with issue, label, note, merge request, and project metadata
 
 ### MCP Protocol Implementation
 - Uses `github.com/mark3labs/mcp-go` for server implementation
@@ -394,9 +451,17 @@ Unit tests provide comprehensive coverage of all functionality:
 - `ListProjectLabels`: Label retrieval with optional filtering, search, and counts
 - `GetLatestPipeline`: Pipeline retrieval with ref filtering and error scenarios
 - `ListPipelineJobs`: Job listing with pipeline ID resolution, status/stage filtering, and comprehensive error handling
-- Edge cases: nil parameters, empty values, API errors, project not found, invalid issue IIDs
+- `ListProjectMergeRequests`: MR retrieval with state filtering, label/author/search filters, and error scenarios
+- `CreateProjectMergeRequest`: MR creation with required/optional fields validation and error handling
+- `GetMergeRequest`: MR detail retrieval with IID validation and error handling
+- `UpdateMergeRequest`: MR updates with partial/full field updates and validation
+- `MergeMergeRequest`: MR merging with squash/remove-source-branch options and error scenarios
+- `GetMergeRequestDiff`: Diff retrieval with formatted unified diff output for new/modified/deleted files
+- `ApproveMergeRequest`: MR approval with optional SHA verification and error handling
+- `AddMergeRequestNote`: MR note creation with body validation and error handling
+- Edge cases: nil parameters, empty values, API errors, project not found, invalid IIDs
 
-All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **72.7%**.
+All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **83.1%**.
 
 ### Group Issues Integration
 

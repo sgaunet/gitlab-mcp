@@ -74,6 +74,16 @@ func (g *GitLabClientWrapper) GroupLabels() GroupLabelsService {
 	return &GroupLabelsServiceWrapper{service: g.client.GroupLabels}
 }
 
+// MergeRequests returns the MergeRequests service.
+func (g *GitLabClientWrapper) MergeRequests() MergeRequestsService {
+	return &MergeRequestsServiceWrapper{service: g.client.MergeRequests}
+}
+
+// MergeRequestApprovals returns the MergeRequestApprovals service.
+func (g *GitLabClientWrapper) MergeRequestApprovals() MergeRequestApprovalsService {
+	return &MergeRequestApprovalsServiceWrapper{service: g.client.MergeRequestApprovals}
+}
+
 // ProjectsServiceWrapper wraps the real Projects service.
 type ProjectsServiceWrapper struct {
 	service gitlab.ProjectsServiceInterface
@@ -217,6 +227,18 @@ func (n *NotesServiceWrapper) CreateIssueNote(
 	return note, resp, nil
 }
 
+func (n *NotesServiceWrapper) CreateMergeRequestNote(
+	pid any,
+	mergeRequest int64,
+	opt *gitlab.CreateMergeRequestNoteOptions,
+) (*gitlab.Note, *gitlab.Response, error) {
+	note, resp, err := n.service.CreateMergeRequestNote(pid, mergeRequest, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return note, resp, nil
+}
+
 // GroupsServiceWrapper wraps the real Groups service.
 type GroupsServiceWrapper struct {
 	service gitlab.GroupsServiceInterface
@@ -347,4 +369,116 @@ func (j *JobsServiceWrapper) GetTraceFile(
 		return nil, nil, fmt.Errorf("gitlab client: %w", err)
 	}
 	return trace, resp, nil
+}
+
+// MergeRequestsServiceWrapper wraps the real MergeRequests service.
+type MergeRequestsServiceWrapper struct {
+	service gitlab.MergeRequestsServiceInterface
+}
+
+func (m *MergeRequestsServiceWrapper) ListProjectMergeRequests(
+	pid any,
+	opt *gitlab.ListProjectMergeRequestsOptions,
+) ([]*gitlab.MergeRequest, *gitlab.Response, error) {
+	basicMRs, resp, err := m.service.ListProjectMergeRequests(pid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+
+	// Convert BasicMergeRequest to MergeRequest directly via embedding.
+	// All fields used by convertGitLabMergeRequest are present in BasicMergeRequest.
+	mrs := make([]*gitlab.MergeRequest, 0, len(basicMRs))
+	for _, basicMR := range basicMRs {
+		mrs = append(mrs, &gitlab.MergeRequest{BasicMergeRequest: *basicMR})
+	}
+
+	return mrs, resp, nil
+}
+
+func (m *MergeRequestsServiceWrapper) CreateMergeRequest(
+	pid any,
+	opt *gitlab.CreateMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	mr, resp, err := m.service.CreateMergeRequest(pid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return mr, resp, nil
+}
+
+func (m *MergeRequestsServiceWrapper) GetMergeRequest(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.GetMergeRequestsOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	mr, resp, err := m.service.GetMergeRequest(pid, int64(mergeRequest), opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return mr, resp, nil
+}
+
+func (m *MergeRequestsServiceWrapper) UpdateMergeRequest(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.UpdateMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	mr, resp, err := m.service.UpdateMergeRequest(pid, int64(mergeRequest), opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return mr, resp, nil
+}
+
+func (m *MergeRequestsServiceWrapper) AcceptMergeRequest(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.AcceptMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	mr, resp, err := m.service.AcceptMergeRequest(pid, int64(mergeRequest), opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return mr, resp, nil
+}
+
+func (m *MergeRequestsServiceWrapper) GetMergeRequestDiffVersions(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.GetMergeRequestDiffVersionsOptions,
+) ([]*gitlab.MergeRequestDiffVersion, *gitlab.Response, error) {
+	diffs, resp, err := m.service.GetMergeRequestDiffVersions(pid, int64(mergeRequest), opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return diffs, resp, nil
+}
+
+func (m *MergeRequestsServiceWrapper) ListMergeRequestDiffs(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.ListMergeRequestDiffsOptions,
+) ([]*gitlab.MergeRequestDiff, *gitlab.Response, error) {
+	diffs, resp, err := m.service.ListMergeRequestDiffs(pid, int64(mergeRequest), opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return diffs, resp, nil
+}
+
+// MergeRequestApprovalsServiceWrapper wraps the real MergeRequestApprovals service.
+type MergeRequestApprovalsServiceWrapper struct {
+	service gitlab.MergeRequestApprovalsServiceInterface
+}
+
+func (m *MergeRequestApprovalsServiceWrapper) ApproveMergeRequest(
+	pid any,
+	mergeRequest int64,
+	opt *gitlab.ApproveMergeRequestOptions,
+) (*gitlab.MergeRequestApprovals, *gitlab.Response, error) {
+	approvals, resp, err := m.service.ApproveMergeRequest(pid, mergeRequest, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return approvals, resp, nil
 }
