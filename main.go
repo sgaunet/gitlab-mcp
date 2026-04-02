@@ -31,6 +31,7 @@ type ToolCategoryFlags struct {
 	ProjectMetadata bool // Project metadata tools
 	Epics           bool // Epic management tools (Premium/Ultimate tier)
 	Pipelines       bool // CI/CD pipeline tools
+	MergeRequests   bool // Merge request management tools
 }
 
 // Error variables for static errors.
@@ -1549,6 +1550,7 @@ func handleCommandLineFlags() *ToolCategoryFlags {
 		noProjectMetadata = flag.Bool("no-project-metadata", false, "Disable project metadata tools")
 		noEpics           = flag.Bool("no-epics", false, "Disable epic management tools")
 		noPipelines       = flag.Bool("no-pipelines", false, "Disable CI/CD pipeline tools")
+		noMergeRequests   = flag.Bool("no-merge-requests", false, "Disable merge request management tools")
 	)
 
 	flag.Parse()
@@ -1572,6 +1574,7 @@ func handleCommandLineFlags() *ToolCategoryFlags {
 		ProjectMetadata: !*noProjectMetadata,
 		Epics:           !*noEpics,
 		Pipelines:       !*noPipelines,
+		MergeRequests:   !*noMergeRequests,
 	}
 }
 
@@ -1843,6 +1846,12 @@ func logEnabledCategories(debugLogger *slog.Logger, flags *ToolCategoryFlags) {
 		disabled = append(disabled, "pipelines")
 	}
 
+	if flags.MergeRequests {
+		enabled = append(enabled, "merge-requests")
+	} else {
+		disabled = append(disabled, "merge-requests")
+	}
+
 	debugLogger.Info("Tool categories configuration",
 		"enabled", strings.Join(enabled, ", "),
 		"disabled", strings.Join(disabled, ", "),
@@ -1891,6 +1900,18 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 		setupListPipelineJobsTool(s, appInstance, debugLogger)
 		setupGetJobLogTool(s, appInstance, debugLogger)
 		setupDownloadJobTraceTool(s, appInstance, debugLogger)
+	}
+
+	// Merge Requests category (8 tools)
+	if flags.MergeRequests {
+		setupListMergeRequestsTool(s, appInstance, debugLogger)
+		setupCreateMergeRequestTool(s, appInstance, debugLogger)
+		setupGetMergeRequestTool(s, appInstance, debugLogger)
+		setupUpdateMergeRequestTool(s, appInstance, debugLogger)
+		setupMergeMergeRequestTool(s, appInstance, debugLogger)
+		setupGetMergeRequestDiffTool(s, appInstance, debugLogger)
+		setupApproveMergeRequestTool(s, appInstance, debugLogger)
+		setupAddMergeRequestNoteTool(s, appInstance, debugLogger)
 	}
 }
 

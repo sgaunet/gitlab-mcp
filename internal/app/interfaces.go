@@ -60,6 +60,11 @@ type NotesService interface {
 		issue int64,
 		opt *gitlab.CreateIssueNoteOptions,
 	) (*gitlab.Note, *gitlab.Response, error)
+	CreateMergeRequestNote(
+		pid any,
+		mergeRequest int64,
+		opt *gitlab.CreateMergeRequestNoteOptions,
+	) (*gitlab.Note, *gitlab.Response, error)
 }
 
 // EpicsService interface for GitLab Epics operations.
@@ -96,6 +101,52 @@ type JobsService interface {
 	) (io.Reader, *gitlab.Response, error)
 }
 
+// MergeRequestsService interface for GitLab Merge Requests operations.
+type MergeRequestsService interface {
+	ListProjectMergeRequests(
+		pid any,
+		opt *gitlab.ListProjectMergeRequestsOptions,
+	) ([]*gitlab.MergeRequest, *gitlab.Response, error)
+	CreateMergeRequest(
+		pid any,
+		opt *gitlab.CreateMergeRequestOptions,
+	) (*gitlab.MergeRequest, *gitlab.Response, error)
+	GetMergeRequest(
+		pid any,
+		mergeRequest int,
+		opt *gitlab.GetMergeRequestsOptions,
+	) (*gitlab.MergeRequest, *gitlab.Response, error)
+	UpdateMergeRequest(
+		pid any,
+		mergeRequest int,
+		opt *gitlab.UpdateMergeRequestOptions,
+	) (*gitlab.MergeRequest, *gitlab.Response, error)
+	AcceptMergeRequest(
+		pid any,
+		mergeRequest int,
+		opt *gitlab.AcceptMergeRequestOptions,
+	) (*gitlab.MergeRequest, *gitlab.Response, error)
+	GetMergeRequestDiffVersions(
+		pid any,
+		mergeRequest int,
+		opt *gitlab.GetMergeRequestDiffVersionsOptions,
+	) ([]*gitlab.MergeRequestDiffVersion, *gitlab.Response, error)
+	ListMergeRequestDiffs(
+		pid any,
+		mergeRequest int,
+		opt *gitlab.ListMergeRequestDiffsOptions,
+	) ([]*gitlab.MergeRequestDiff, *gitlab.Response, error)
+}
+
+// MergeRequestApprovalsService interface for GitLab Merge Request Approvals operations.
+type MergeRequestApprovalsService interface {
+	ApproveMergeRequest(
+		pid any,
+		mergeRequest int64,
+		opt *gitlab.ApproveMergeRequestOptions,
+	) (*gitlab.MergeRequestApprovals, *gitlab.Response, error)
+}
+
 // GitLabClient interface that provides access to all GitLab services.
 type GitLabClient interface {
 	Projects() ProjectsService
@@ -109,4 +160,6 @@ type GitLabClient interface {
 	EpicIssues() EpicIssuesService
 	Pipelines() PipelinesService
 	Jobs() JobsService
+	MergeRequests() MergeRequestsService
+	MergeRequestApprovals() MergeRequestApprovalsService
 }

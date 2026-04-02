@@ -82,6 +82,18 @@ func (m *MockGitLabClient) GroupLabels() GroupLabelsService {
 	return result
 }
 
+func (m *MockGitLabClient) MergeRequests() MergeRequestsService {
+	args := m.Called()
+	result, _ := args.Get(0).(MergeRequestsService)
+	return result
+}
+
+func (m *MockGitLabClient) MergeRequestApprovals() MergeRequestApprovalsService {
+	args := m.Called()
+	result, _ := args.Get(0).(MergeRequestApprovalsService)
+	return result
+}
+
 // MockProjectsService is a mock implementation of ProjectsService.
 type MockProjectsService struct {
 	mock.Mock
@@ -233,6 +245,17 @@ func (m *MockNotesService) CreateIssueNote(
 	return note, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockNotesService) CreateMergeRequestNote(
+	pid any,
+	mergeRequest int64,
+	opt *gitlab.CreateMergeRequestNoteOptions,
+) (*gitlab.Note, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	note, _ := args.Get(0).(*gitlab.Note)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return note, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 // MockGroupsService is a mock implementation of GroupsService.
 type MockGroupsService struct {
 	mock.Mock
@@ -351,4 +374,100 @@ func (m *MockJobsService) GetTraceFile(
 	reader, _ := args.Get(0).(io.Reader)
 	response, _ := args.Get(1).(*gitlab.Response)
 	return reader, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockMergeRequestsService is a mock implementation of MergeRequestsService.
+type MockMergeRequestsService struct {
+	mock.Mock
+}
+
+func (m *MockMergeRequestsService) ListProjectMergeRequests(
+	pid any,
+	opt *gitlab.ListProjectMergeRequestsOptions,
+) ([]*gitlab.MergeRequest, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	mrs, _ := args.Get(0).([]*gitlab.MergeRequest)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return mrs, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockMergeRequestsService) CreateMergeRequest(
+	pid any,
+	opt *gitlab.CreateMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	args := m.Called(pid, opt)
+	mr, _ := args.Get(0).(*gitlab.MergeRequest)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return mr, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockMergeRequestsService) GetMergeRequest(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.GetMergeRequestsOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	mr, _ := args.Get(0).(*gitlab.MergeRequest)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return mr, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockMergeRequestsService) UpdateMergeRequest(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.UpdateMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	mr, _ := args.Get(0).(*gitlab.MergeRequest)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return mr, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockMergeRequestsService) AcceptMergeRequest(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.AcceptMergeRequestOptions,
+) (*gitlab.MergeRequest, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	mr, _ := args.Get(0).(*gitlab.MergeRequest)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return mr, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockMergeRequestsService) GetMergeRequestDiffVersions(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.GetMergeRequestDiffVersionsOptions,
+) ([]*gitlab.MergeRequestDiffVersion, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	diffs, _ := args.Get(0).([]*gitlab.MergeRequestDiffVersion)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return diffs, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+func (m *MockMergeRequestsService) ListMergeRequestDiffs(
+	pid any,
+	mergeRequest int,
+	opt *gitlab.ListMergeRequestDiffsOptions,
+) ([]*gitlab.MergeRequestDiff, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	diffs, _ := args.Get(0).([]*gitlab.MergeRequestDiff)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return diffs, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
+// MockMergeRequestApprovalsService is a mock implementation of MergeRequestApprovalsService.
+type MockMergeRequestApprovalsService struct {
+	mock.Mock
+}
+
+func (m *MockMergeRequestApprovalsService) ApproveMergeRequest(
+	pid any,
+	mergeRequest int64,
+	opt *gitlab.ApproveMergeRequestOptions,
+) (*gitlab.MergeRequestApprovals, *gitlab.Response, error) {
+	args := m.Called(pid, mergeRequest, opt)
+	approvals, _ := args.Get(0).(*gitlab.MergeRequestApprovals)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return approvals, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
