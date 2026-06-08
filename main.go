@@ -22,6 +22,9 @@ var version = "dev"
 
 const (
 	defaultLimit = 100
+
+	defaultStateOpened = "opened"
+	defaultStateClosed = "closed"
 )
 
 // ToolCategoryFlags controls which tool categories are enabled.
@@ -36,16 +39,16 @@ type ToolCategoryFlags struct {
 
 // Error variables for static errors.
 var (
-	ErrInvalidStateValue            = errors.New("state must be 'opened' or 'closed'")
-	ErrGroupPathRequired            = errors.New("group_path is required and must be a non-empty string")
-	ErrEpicIIDRequired              = errors.New("epic_iid is required and must be a number")
-	ErrEpicIIDMustBePositive        = errors.New("epic_iid must be greater than 0")
-	ErrProjectPathRequired          = errors.New("project_path is required and must be a non-empty string")
-	ErrIssueIIDRequired             = errors.New("issue_iid is required and must be a number")
-	ErrIssueIIDMustBePositive       = errors.New("issue_iid must be greater than 0")
-	ErrInvalidJobStatus             = errors.New("invalid job status")
-	ErrJobIDRequired                = errors.New("job_id must be a number")
-	ErrJobIDMustBePositive          = errors.New("job_id must be positive")
+	ErrInvalidStateValue      = errors.New("state must be 'opened' or 'closed'")
+	ErrGroupPathRequired      = errors.New("group_path is required and must be a non-empty string")
+	ErrEpicIIDRequired        = errors.New("epic_iid is required and must be a number")
+	ErrEpicIIDMustBePositive  = errors.New("epic_iid must be greater than 0")
+	ErrProjectPathRequired    = errors.New("project_path is required and must be a non-empty string")
+	ErrIssueIIDRequired       = errors.New("issue_iid is required and must be a number")
+	ErrIssueIIDMustBePositive = errors.New("issue_iid must be greater than 0")
+	ErrInvalidJobStatus       = errors.New("invalid job status")
+	ErrJobIDRequired          = errors.New("job_id must be a number")
+	ErrJobIDMustBePositive    = errors.New("job_id must be positive")
 )
 
 // setupListIssuesTool creates and registers the list_issues tool.
@@ -89,9 +92,9 @@ func setupListIssuesTool(s *server.MCPServer, appInstance *app.App, debugLogger 
 
 		// Extract optional parameters
 		opts := &app.ListIssuesOptions{
-			State:              "opened",     // default
-			Limit:              defaultLimit, // default
-			IncludeGroupIssues: true,         // default to true for comprehensive results
+			State:              defaultStateOpened, // default
+			Limit:              defaultLimit,       // default
+			IncludeGroupIssues: true,               // default to true for comprehensive results
 		}
 
 		if state, ok := args["state"].(string); ok && state != "" {
@@ -364,7 +367,7 @@ func extractUpdateStringFields(args map[string]any, opts *app.UpdateIssueOptions
 // extractUpdateState extracts and validates the state field.
 func extractUpdateState(args map[string]any, opts *app.UpdateIssueOptions, debugLogger *slog.Logger) error {
 	if state, ok := args["state"].(string); ok && state != "" {
-		if state != "opened" && state != "closed" {
+		if state != defaultStateOpened && state != defaultStateClosed {
 			debugLogger.Error("invalid state value", "state", state)
 			return ErrInvalidStateValue
 		}
@@ -529,7 +532,7 @@ func handleListEpicsRequest(
 
 		// Extract optional parameters
 		opts := &app.ListEpicsOptions{
-			State: "opened",
+			State: defaultStateOpened,
 			Limit: defaultLimit,
 		}
 
@@ -1274,7 +1277,6 @@ func handleNoteRequest(
 }
 
 var handleAddIssueNoteRequest = handleNoteRequest
-
 
 // setupProjectInfoTool creates a generic project info tool handler.
 func setupProjectInfoTool(
