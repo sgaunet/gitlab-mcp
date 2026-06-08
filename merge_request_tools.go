@@ -47,7 +47,7 @@ func parseIDArray(idsInterface any) []int64 {
 
 // parseListMROptions extracts list merge request options from arguments.
 func parseListMROptions(args map[string]any) *app.ListMergeRequestsOptions {
-	opts := &app.ListMergeRequestsOptions{State: "opened", Limit: defaultLimit}
+	opts := &app.ListMergeRequestsOptions{State: defaultStateOpened, Limit: defaultLimit}
 
 	if state, ok := args["state"].(string); ok && state != "" {
 		opts.State = state

@@ -442,15 +442,15 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 		WebURL:         mr.WebURL,
 		MergeStatus:    mr.DetailedMergeStatus,
 		Draft:          mr.Draft,
-		WorkInProgress: mr.Draft,  // Draft is the new field
+		WorkInProgress: mr.Draft, // Draft is the new field
 	}
 
 	// Convert author
 	if mr.Author != nil {
 		result.Author = map[string]any{
-			"id":       mr.Author.ID,
-			"username": mr.Author.Username,
-			"name":     mr.Author.Name,
+			"id":          mr.Author.ID,
+			fieldUsername: mr.Author.Username,
+			fieldName:     mr.Author.Name,
 		}
 	}
 
@@ -459,9 +459,9 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 		result.Assignees = make([]map[string]any, 0, len(mr.Assignees))
 		for _, assignee := range mr.Assignees {
 			result.Assignees = append(result.Assignees, map[string]any{
-				"id":       assignee.ID,
-				"username": assignee.Username,
-				"name":     assignee.Name,
+				"id":          assignee.ID,
+				fieldUsername: assignee.Username,
+				fieldName:     assignee.Name,
 			})
 		}
 	}
@@ -471,9 +471,9 @@ func convertGitLabMergeRequest(mr *gitlab.MergeRequest) MergeRequest {
 		result.Reviewers = make([]map[string]any, 0, len(mr.Reviewers))
 		for _, reviewer := range mr.Reviewers {
 			result.Reviewers = append(result.Reviewers, map[string]any{
-				"id":       reviewer.ID,
-				"username": reviewer.Username,
-				"name":     reviewer.Name,
+				"id":          reviewer.ID,
+				fieldUsername: reviewer.Username,
+				fieldName:     reviewer.Name,
 			})
 		}
 	}

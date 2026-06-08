@@ -20,36 +20,41 @@ import (
 const (
 	defaultGitLabURI   = "https://gitlab.com/"
 	defaultStateOpened = "opened"
+	defaultStateClosed = "closed"
 	maxIssuesPerPage   = 100
 	maxLabelsPerPage   = 100
 	maxJobsPerPage     = 100
+
+	// Map keys used when representing GitLab users (authors, assignees, reviewers).
+	fieldUsername = "username"
+	fieldName     = "name"
 )
 
 // Error variables for static errors.
 var (
-	ErrGitLabTokenRequired      = errors.New("GITLAB_TOKEN environment variable is required")
-	ErrCreateOptionsRequired    = errors.New("create issue options are required")
-	ErrIssueTitleRequired       = errors.New("issue title is required")
-	ErrInvalidIssueIID          = errors.New("issue IID must be a positive integer")
-	ErrUpdateOptionsRequired    = errors.New("update issue options are required")
+	ErrGitLabTokenRequired       = errors.New("GITLAB_TOKEN environment variable is required")
+	ErrCreateOptionsRequired     = errors.New("create issue options are required")
+	ErrIssueTitleRequired        = errors.New("issue title is required")
+	ErrInvalidIssueIID           = errors.New("issue IID must be a positive integer")
+	ErrUpdateOptionsRequired     = errors.New("update issue options are required")
 	ErrUpdateEpicOptionsRequired = errors.New("update epic options are required")
-	ErrNoteBodyRequired         = errors.New("note body is required")
-	ErrLabelValidationFailed    = errors.New("label validation failed")
-	ErrEpicsTierRequired        = errors.New("epics require GitLab Premium or Ultimate tier")
-	ErrEpicTitleRequired        = errors.New("epic title is required")
-	ErrInvalidDateFormat        = errors.New("date must be in YYYY-MM-DD format")
-	ErrEpicIIDRequired          = errors.New("epic IID is required")
-	ErrInvalidEpicState         = errors.New("epic state must be 'opened' or 'closed'")
-	ErrProjectPathRequired      = errors.New("project path is required")
-	ErrGroupPathRequired        = errors.New("group path is required")
-	ErrIssueNotFound            = errors.New("issue not found")
-	ErrNoPipelinesFound         = errors.New("no pipelines found")
-	ErrJobLogOptionsRequired    = errors.New("options cannot be nil")
-	ErrInvalidJobID             = errors.New("job_id must be positive")
-	ErrJobNotFoundInPipeline    = errors.New("job not found in pipeline")
-	ErrInvalidOutputPath        = errors.New("invalid output path")
-	ErrFileWriteFailed          = errors.New("failed to write trace file")
-	ErrPathTraversalAttempt     = errors.New("path traversal attempt detected")
+	ErrNoteBodyRequired          = errors.New("note body is required")
+	ErrLabelValidationFailed     = errors.New("label validation failed")
+	ErrEpicsTierRequired         = errors.New("epics require GitLab Premium or Ultimate tier")
+	ErrEpicTitleRequired         = errors.New("epic title is required")
+	ErrInvalidDateFormat         = errors.New("date must be in YYYY-MM-DD format")
+	ErrEpicIIDRequired           = errors.New("epic IID is required")
+	ErrInvalidEpicState          = errors.New("epic state must be 'opened' or 'closed'")
+	ErrProjectPathRequired       = errors.New("project path is required")
+	ErrGroupPathRequired         = errors.New("group path is required")
+	ErrIssueNotFound             = errors.New("issue not found")
+	ErrNoPipelinesFound          = errors.New("no pipelines found")
+	ErrJobLogOptionsRequired     = errors.New("options cannot be nil")
+	ErrInvalidJobID              = errors.New("job_id must be positive")
+	ErrJobNotFoundInPipeline     = errors.New("job not found in pipeline")
+	ErrInvalidOutputPath         = errors.New("invalid output path")
+	ErrFileWriteFailed           = errors.New("failed to write trace file")
+	ErrPathTraversalAttempt      = errors.New("path traversal attempt detected")
 )
 
 type App struct {
@@ -208,10 +213,10 @@ type UpdateEpicOptions struct {
 	Title        string
 	Description  string
 	Labels       []string
-	StartDate    string   // YYYY-MM-DD
-	DueDate      string   // YYYY-MM-DD
-	State        string   // "opened" or "closed"
-	Confidential *bool    // Pointer: nil=no change, true/false=set value
+	StartDate    string // YYYY-MM-DD
+	DueDate      string // YYYY-MM-DD
+	State        string // "opened" or "closed"
+	Confidential *bool  // Pointer: nil=no change, true/false=set value
 }
 
 // AddIssueToEpicOptions contains options for attaching an issue to an epic.
@@ -375,30 +380,30 @@ type DownloadJobTraceResult struct {
 	Ref        string `json:"ref"`
 	PipelineID int64  `json:"pipeline_id"`
 	WebURL     string `json:"web_url"`
-	FilePath   string `json:"file_path"`   // Absolute path where trace was saved
-	FileSize   int64  `json:"file_size"`   // Size in bytes
-	SavedAt    string `json:"saved_at"`    // ISO 8601 timestamp
+	FilePath   string `json:"file_path"` // Absolute path where trace was saved
+	FileSize   int64  `json:"file_size"` // Size in bytes
+	SavedAt    string `json:"saved_at"`  // ISO 8601 timestamp
 }
 
 // MergeRequest represents a GitLab merge request.
 type MergeRequest struct {
-	ID             int64          `json:"id"`
-	IID            int64          `json:"iid"`
-	Title          string         `json:"title"`
-	Description    string         `json:"description"`
-	State          string         `json:"state"`
-	SourceBranch   string         `json:"source_branch"`
-	TargetBranch   string         `json:"target_branch"`
-	Author         map[string]any `json:"author"`
+	ID             int64            `json:"id"`
+	IID            int64            `json:"iid"`
+	Title          string           `json:"title"`
+	Description    string           `json:"description"`
+	State          string           `json:"state"`
+	SourceBranch   string           `json:"source_branch"`
+	TargetBranch   string           `json:"target_branch"`
+	Author         map[string]any   `json:"author"`
 	Assignees      []map[string]any `json:"assignees,omitempty"`
 	Reviewers      []map[string]any `json:"reviewers,omitempty"`
-	Labels         []string       `json:"labels"`
-	WebURL         string         `json:"web_url"`
-	MergeStatus    string         `json:"merge_status"`
-	Draft          bool           `json:"draft"`
-	WorkInProgress bool           `json:"work_in_progress"`
-	CreatedAt      string         `json:"created_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	Labels         []string         `json:"labels"`
+	WebURL         string           `json:"web_url"`
+	MergeStatus    string           `json:"merge_status"`
+	Draft          bool             `json:"draft"`
+	WorkInProgress bool             `json:"work_in_progress"`
+	CreatedAt      string           `json:"created_at"`
+	UpdatedAt      string           `json:"updated_at"`
 }
 
 // ListMergeRequestsOptions contains options for listing merge requests.
@@ -433,11 +438,11 @@ type UpdateMergeRequestOptions struct {
 
 // MergeMergeRequestOptions contains options for merging a merge request.
 type MergeMergeRequestOptions struct {
-	MergeCommitMessage       string // Optional
-	SquashCommitMessage      string // Optional
-	Squash                   bool   // Optional
-	ShouldRemoveSourceBranch bool   // Optional
-	MergeWhenPipelineSucceeds bool  // Optional
+	MergeCommitMessage        string // Optional
+	SquashCommitMessage       string // Optional
+	Squash                    bool   // Optional
+	ShouldRemoveSourceBranch  bool   // Optional
+	MergeWhenPipelineSucceeds bool   // Optional
 }
 
 // AddMergeRequestNoteOptions contains options for adding a note to a merge request.
@@ -469,9 +474,9 @@ func convertGitLabIssue(issue *gitlab.Issue) Issue {
 	assignees := make([]map[string]any, 0, len(issue.Assignees))
 	for _, assignee := range issue.Assignees {
 		assignees = append(assignees, map[string]any{
-			"id":       assignee.ID,
-			"username": assignee.Username,
-			"name":     assignee.Name,
+			"id":          assignee.ID,
+			fieldUsername: assignee.Username,
+			fieldName:     assignee.Name,
 		})
 	}
 
@@ -488,16 +493,15 @@ func convertGitLabIssue(issue *gitlab.Issue) Issue {
 	}
 }
 
-
 // convertGitLabEpic converts a GitLab epic to our Epic struct.
 func convertGitLabEpic(epic *gitlab.Epic) Epic {
 	// Convert author to the expected format
 	var author map[string]any
 	if epic.Author != nil {
 		author = map[string]any{
-			"id":       epic.Author.ID,
-			"username": epic.Author.Username,
-			"name":     epic.Author.Name,
+			"id":          epic.Author.ID,
+			fieldUsername: epic.Author.Username,
+			fieldName:     epic.Author.Name,
 		}
 	}
 
@@ -542,9 +546,9 @@ func convertGitLabEpicIssueAssignment(epicIssue *gitlab.EpicIssueAssignment) Epi
 	var author map[string]any
 	if epicIssue.Issue.Author != nil {
 		author = map[string]any{
-			"id":       epicIssue.Issue.Author.ID,
-			"username": epicIssue.Issue.Author.Username,
-			"name":     epicIssue.Issue.Author.Name,
+			"id":          epicIssue.Issue.Author.ID,
+			fieldUsername: epicIssue.Issue.Author.Username,
+			fieldName:     epicIssue.Issue.Author.Name,
 		}
 	}
 
@@ -976,7 +980,6 @@ func (a *App) AddIssueNote(projectPath string, issueIID int64, opts *AddIssueNot
 	return a.addNoteCommon(projectPath, issueIID, opts.Body, "issue", createNote)
 }
 
-
 // ProjectInfo represents basic project information.
 type ProjectInfo struct {
 	ID          int64    `json:"id"`
@@ -1125,9 +1128,9 @@ func convertGitLabNote(note *gitlab.Note) *Note {
 	// Convert author information
 	if note.Author.ID != 0 {
 		result.Author = map[string]any{
-			"id":       note.Author.ID,
-			"username": note.Author.Username,
-			"name":     note.Author.Name,
+			"id":          note.Author.ID,
+			fieldUsername: note.Author.Username,
+			fieldName:     note.Author.Name,
 		}
 	}
 
@@ -1866,12 +1869,12 @@ func (a *App) resolveGroupID(groupPath string) (int64, error) {
 func (a *App) setDefaultEpicOptions(opts *ListEpicsOptions) *ListEpicsOptions {
 	if opts == nil {
 		return &ListEpicsOptions{
-			State: "opened",
+			State: defaultStateOpened,
 			Limit: maxIssuesPerPage,
 		}
 	}
 	if opts.State == "" {
-		opts.State = "opened"
+		opts.State = defaultStateOpened
 	}
 	if opts.Limit == 0 {
 		opts.Limit = maxIssuesPerPage
@@ -2026,7 +2029,7 @@ func (a *App) buildUpdateEpicOptions(
 // setEpicState validates and sets the epic state.
 func (a *App) setEpicState(updateOpts *gitlab.UpdateEpicOptions, state string) error {
 	if state != "" {
-		if state != "opened" && state != "closed" {
+		if state != defaultStateOpened && state != defaultStateClosed {
 			return ErrInvalidEpicState
 		}
 		updateOpts.StateEvent = &state
