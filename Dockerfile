@@ -1,4 +1,4 @@
-FROM alpine:3.23.4 AS alpine
+FROM alpine:3.24.1 AS alpine
 
 FROM scratch AS final
 # Copy the ca-certificates.crt from the alpine image
