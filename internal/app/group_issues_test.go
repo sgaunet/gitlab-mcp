@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 func TestExtractGroupPath(t *testing.T) {
@@ -67,20 +67,20 @@ func TestMergeIssues(t *testing.T) {
 	currentProjectID := int64(100)
 
 	tests := []struct {
-		name            string
-		projectIssues   []*gitlab.Issue
-		groupIssues     []*gitlab.Issue
+		name             string
+		projectIssues    []*gitlab.Issue
+		groupIssues      []*gitlab.Issue
 		currentProjectID int64
-		wantCount       int
-		description     string
+		wantCount        int
+		description      string
 	}{
 		{
-			name:            "empty sets",
-			projectIssues:   []*gitlab.Issue{},
-			groupIssues:     []*gitlab.Issue{},
+			name:             "empty sets",
+			projectIssues:    []*gitlab.Issue{},
+			groupIssues:      []*gitlab.Issue{},
 			currentProjectID: currentProjectID,
-			wantCount:       0,
-			description:     "both empty should return empty",
+			wantCount:        0,
+			description:      "both empty should return empty",
 		},
 		{
 			name: "project only",
@@ -135,7 +135,7 @@ func TestMergeIssues(t *testing.T) {
 				{ID: 2, IID: 2, ProjectID: 100, Title: "P2", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime},
 			},
 			groupIssues: []*gitlab.Issue{
-				{ID: 1, IID: 1, ProjectID: 100, Title: "P1", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime}, // duplicate
+				{ID: 1, IID: 1, ProjectID: 100, Title: "P1", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime},   // duplicate
 				{ID: 10, IID: 10, ProjectID: 200, Title: "G1", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime}, // unique
 			},
 			currentProjectID: currentProjectID,
@@ -181,7 +181,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -213,7 +213,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				projectOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -225,7 +225,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				groupOpts := &gitlab.ListGroupIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -256,7 +256,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				projectOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -288,7 +288,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				projectOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -300,7 +300,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				groupOpts := &gitlab.ListGroupIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -330,7 +330,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				projectOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -340,7 +340,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				groupOpts := &gitlab.ListGroupIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -371,7 +371,7 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				projectOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -384,13 +384,13 @@ func TestListProjectIssuesWithGroupIssues(t *testing.T) {
 				)
 
 				groupOpts := &gitlab.ListGroupIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
 				issues.On("ListGroupIssues", "myorg", groupOpts, []gitlab.RequestOptionFunc(nil)).Return(
 					[]*gitlab.Issue{
-						{ID: 1, IID: 1, ProjectID: 123, Title: "P1", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime}, // duplicate
+						{ID: 1, IID: 1, ProjectID: 123, Title: "P1", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime},   // duplicate
 						{ID: 10, IID: 10, ProjectID: 456, Title: "G1", State: "opened", CreatedAt: &testTime, UpdatedAt: &testTime}, // unique
 					},
 					&gitlab.Response{}, nil,

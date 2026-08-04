@@ -2131,7 +2131,7 @@ func (a *App) validateLabels(projectID int64, projectPath string, requestedLabel
 	// Get existing labels from the project and parent groups (hierarchical)
 	existingLabels, err := a.ListProjectLabels(projectPath, &ListLabelsOptions{
 		Limit:                 maxLabelsPerPage,
-		IncludeAncestorGroups: gitlab.Ptr(true),
+		IncludeAncestorGroups: new(true),
 	})
 	if err != nil {
 		a.logger.Error("Failed to retrieve existing labels for validation", "error", err, "project_id", projectID)
@@ -2191,7 +2191,7 @@ func (a *App) validateGroupLabels(groupID int64, groupPath string, requestedLabe
 	// Get existing group labels including parent groups (hierarchical)
 	listOpts := &gitlab.ListGroupLabelsOptions{
 		ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
-		IncludeAncestorGroups: gitlab.Ptr(true),
+		IncludeAncestorGroups: new(true),
 	}
 
 	groupLabels, _, err := a.client.GroupLabels().ListGroupLabels(groupID, listOpts)

@@ -34,6 +34,11 @@ tasks:
     cmds:
       - go test -count=2 -race ./...
 
+  vulncheck:
+    desc: "Scan dependencies for known vulnerabilities"
+    cmds:
+      - govulncheck ./...
+
   coverage:
     desc: "Generate coverage report with percentage"
     cmds:

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 func TestApp_ValidateConnection(t *testing.T) {
@@ -85,7 +85,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -133,7 +133,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("closed"),
+					State:       new("closed"),
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 
@@ -158,7 +158,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"bug"})
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					Labels:      &expectedLabels,
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
@@ -208,7 +208,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "priority-high", "needs-review"})
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					Labels:      &expectedLabels,
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
@@ -270,7 +270,7 @@ func TestApp_ListProjectIssues(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListProjectIssuesOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -333,8 +333,8 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateIssueOptions{
-					Title:       gitlab.Ptr("New Issue"),
-					Description: gitlab.Ptr(""),
+					Title:       new("New Issue"),
+					Description: new(""),
 				}
 
 				issues.On("CreateIssue", int64(123), expectedOpts).Return(
@@ -385,8 +385,8 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
-					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					WithCounts:            new(false),
+					IncludeAncestorGroups: new(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				mockLabels.On("ListLabels", int64(123), listOpts).Return(
@@ -400,8 +400,8 @@ func TestApp_CreateProjectIssue(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "priority-high"})
 				expectedOpts := &gitlab.CreateIssueOptions{
-					Title:       gitlab.Ptr("Full Issue"),
-					Description: gitlab.Ptr("Full description"),
+					Title:       new("Full Issue"),
+					Description: new("Full description"),
 					Labels:      &expectedLabels,
 					AssigneeIDs: &[]int64{1, 2},
 				}
@@ -509,8 +509,8 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"non-existent-label"})
 				expectedOpts := &gitlab.CreateIssueOptions{
-					Title:       gitlab.Ptr("Test Issue"),
-					Description: gitlab.Ptr(""),
+					Title:       new("Test Issue"),
+					Description: new(""),
 					Labels:      &expectedLabels,
 				}
 
@@ -544,8 +544,8 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
-					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					WithCounts:            new(false),
+					IncludeAncestorGroups: new(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				labels.On("ListLabels", int64(123), listOpts).Return(
@@ -560,8 +560,8 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 				// Mock for issue creation
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "enhancement"})
 				expectedOpts := &gitlab.CreateIssueOptions{
-					Title:       gitlab.Ptr("Test Issue"),
-					Description: gitlab.Ptr(""),
+					Title:       new("Test Issue"),
+					Description: new(""),
 					Labels:      &expectedLabels,
 				}
 
@@ -594,8 +594,8 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
-					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					WithCounts:            new(false),
+					IncludeAncestorGroups: new(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				labels.On("ListLabels", int64(123), listOpts).Return(
@@ -624,8 +624,8 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 
 				// Mock for label validation
 				listOpts := &gitlab.ListLabelsOptions{
-					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					WithCounts:            new(false),
+					IncludeAncestorGroups: new(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 				labels.On("ListLabels", int64(123), listOpts).Return(
@@ -639,8 +639,8 @@ func TestApp_CreateProjectIssue_LabelValidation(t *testing.T) {
 				// Mock for issue creation
 				expectedLabels := gitlab.LabelOptions([]string{"BUG", "Enhancement"})
 				expectedOpts := &gitlab.CreateIssueOptions{
-					Title:       gitlab.Ptr("Test Issue"),
-					Description: gitlab.Ptr(""),
+					Title:       new("Test Issue"),
+					Description: new(""),
 					Labels:      &expectedLabels,
 				}
 
@@ -719,8 +719,8 @@ func TestApp_ListProjectLabels(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListLabelsOptions{
-					WithCounts:            gitlab.Ptr(false),
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					WithCounts:            new(false),
+					IncludeAncestorGroups: new(true),
 					ListOptions:           gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -762,7 +762,7 @@ func TestApp_ListProjectLabels(t *testing.T) {
 		},
 		{
 			name: "successful list with custom options",
-			opts: &ListLabelsOptions{WithCounts: gitlab.Ptr(true), Search: "bug", Limit: 50},
+			opts: &ListLabelsOptions{WithCounts: new(true), Search: "bug", Limit: 50},
 			setup: func(client *MockGitLabClient, projects *MockProjectsService, labels *MockLabelsService) {
 				client.On("Projects").Return(projects)
 				client.On("Labels").Return(labels)
@@ -772,9 +772,9 @@ func TestApp_ListProjectLabels(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListLabelsOptions{
-					WithCounts:            gitlab.Ptr(true),
-					IncludeAncestorGroups: gitlab.Ptr(true),
-					Search:                gitlab.Ptr("bug"),
+					WithCounts:            new(true),
+					IncludeAncestorGroups: new(true),
+					Search:                new("bug"),
 					ListOptions:           gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 
@@ -937,9 +937,9 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "fixed"})
 				expectedOpts := &gitlab.UpdateIssueOptions{
-					Title:       gitlab.Ptr("Updated Title"),
-					Description: gitlab.Ptr("Updated description"),
-					StateEvent:  gitlab.Ptr("closed"),
+					Title:       new("Updated Title"),
+					Description: new("Updated description"),
+					StateEvent:  new("closed"),
 					Labels:      &expectedLabels,
 					AssigneeIDs: &[]int64{1, 2},
 				}
@@ -993,7 +993,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.UpdateIssueOptions{
-					Title: gitlab.Ptr("Just updating title"),
+					Title: new("Just updating title"),
 				}
 
 				issues.On("UpdateIssue", int64(123), int64(5), expectedOpts).Return(
@@ -1067,7 +1067,7 @@ func TestApp_UpdateProjectIssue(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.UpdateIssueOptions{
-					Title: gitlab.Ptr("Test"),
+					Title: new("Test"),
 				}
 
 				issues.On("UpdateIssue", int64(123), int64(1), expectedOpts).Return(
@@ -1263,7 +1263,7 @@ func TestApp_AddIssueNote(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateIssueNoteOptions{
-					Body: gitlab.Ptr("This is a test note"),
+					Body: new("This is a test note"),
 				}
 
 				notes.On("CreateIssueNote", int64(123), int64(10), expectedOpts).Return(
@@ -1330,7 +1330,7 @@ func TestApp_AddIssueNote(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateIssueNoteOptions{
-					Body: gitlab.Ptr("Test note"),
+					Body: new("Test note"),
 				}
 
 				notes.On("CreateIssueNote", int64(123), int64(10), expectedOpts).Return(
@@ -1389,7 +1389,6 @@ func TestApp_AddIssueNote_InvalidIssueIID(t *testing.T) {
 	assert.Equal(t, ErrInvalidIssueIID, err)
 	assert.Nil(t, got)
 }
-
 
 func TestApp_GetProjectDescription(t *testing.T) {
 	tests := []struct {
@@ -1496,7 +1495,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 
 				// Second call to update project
 				expectedOpts := &gitlab.EditProjectOptions{
-					Description: gitlab.Ptr("Updated project description"),
+					Description: new("Updated project description"),
 				}
 				projects.On("EditProject", int64(123), expectedOpts).Return(
 					&gitlab.Project{
@@ -1550,7 +1549,7 @@ func TestApp_UpdateProjectDescription(t *testing.T) {
 
 				// Second call to update project fails
 				expectedOpts := &gitlab.EditProjectOptions{
-					Description: gitlab.Ptr("New description"),
+					Description: new("New description"),
 				}
 				projects.On("EditProject", int64(123), expectedOpts).Return(
 					(*gitlab.Project)(nil), (*gitlab.Response)(nil), errors.New("403 Forbidden"),
@@ -1892,8 +1891,8 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 				confidential := true
 
 				expectedOpts := &gitlab.CreateEpicOptions{
-					Title:            gitlab.Ptr("Test Epic"),
-					Description:      gitlab.Ptr("Test Description"),
+					Title:            new("Test Epic"),
+					Description:      new("Test Description"),
 					Labels:           &labels,
 					StartDateIsFixed: &fixed,
 					StartDateFixed:   &startDate,
@@ -1963,8 +1962,8 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateEpicOptions{
-					Title:       gitlab.Ptr("Minimal Epic"),
-					Description: gitlab.Ptr(""),
+					Title:       new("Minimal Epic"),
+					Description: new(""),
 				}
 
 				epics.On("CreateEpic", int64(456), expectedOpts).Return(
@@ -2053,8 +2052,8 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateEpicOptions{
-					Title:       gitlab.Ptr("Test Epic"),
-					Description: gitlab.Ptr(""),
+					Title:       new("Test Epic"),
+					Description: new(""),
 				}
 
 				epics.On("CreateEpic", int64(456), expectedOpts).Return(
@@ -2098,8 +2097,8 @@ func TestApp_CreateGroupEpic(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateEpicOptions{
-					Title:       gitlab.Ptr("Test Epic"),
-					Description: gitlab.Ptr(""),
+					Title:       new("Test Epic"),
+					Description: new(""),
 				}
 
 				epics.On("CreateEpic", int64(456), expectedOpts).Return(
@@ -2173,7 +2172,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 				StartDate:    "2024-04-01",
 				DueDate:      "2024-07-31",
 				State:        "closed",
-				Confidential: gitlab.Ptr(true),
+				Confidential: new(true),
 			},
 			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
 				client.On("Groups").Return(groups)
@@ -2187,7 +2186,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 				// Mock label validation
 				listOpts := &gitlab.ListGroupLabelsOptions{
 					ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					IncludeAncestorGroups: new(true),
 				}
 				groupLabels.On("ListGroupLabels", int64(456), listOpts).Return(
 					[]*gitlab.GroupLabel{
@@ -2204,8 +2203,8 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 				state := "closed"
 
 				expectedOpts := &gitlab.UpdateEpicOptions{
-					Title:            gitlab.Ptr("Updated Epic Title"),
-					Description:      gitlab.Ptr("Updated Description"),
+					Title:            new("Updated Epic Title"),
+					Description:      new("Updated Description"),
 					Labels:           &labels,
 					StartDateIsFixed: &fixed,
 					StartDateFixed:   &startDate,
@@ -2275,7 +2274,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.UpdateEpicOptions{
-					Title: gitlab.Ptr("Only Updating Title"),
+					Title: new("Only Updating Title"),
 				}
 
 				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
@@ -2321,7 +2320,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 			name:    "successful update setting confidential true",
 			epicIID: 5,
 			opts: &UpdateEpicOptions{
-				Confidential: gitlab.Ptr(true),
+				Confidential: new(true),
 			},
 			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
 				client.On("Groups").Return(groups)
@@ -2332,7 +2331,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.UpdateEpicOptions{
-					Confidential: gitlab.Ptr(true),
+					Confidential: new(true),
 				}
 
 				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
@@ -2378,7 +2377,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 			name:    "successful update setting confidential false",
 			epicIID: 5,
 			opts: &UpdateEpicOptions{
-				Confidential: gitlab.Ptr(false),
+				Confidential: new(false),
 			},
 			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
 				client.On("Groups").Return(groups)
@@ -2389,7 +2388,7 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.UpdateEpicOptions{
-					Confidential: gitlab.Ptr(false),
+					Confidential: new(false),
 				}
 
 				epics.On("UpdateEpic", int64(456), 5, expectedOpts).Return(
@@ -2435,7 +2434,8 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 			name:    "nil options",
 			epicIID: 5,
 			opts:    nil,
-			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+			},
 			want:    nil,
 			wantErr: true,
 			errType: ErrUpdateEpicOptionsRequired,
@@ -2444,7 +2444,8 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 			name:    "invalid epic IID (zero)",
 			epicIID: 0,
 			opts:    &UpdateEpicOptions{Title: "Test"},
-			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+			},
 			want:    nil,
 			wantErr: true,
 			errType: ErrEpicIIDRequired,
@@ -2453,7 +2454,8 @@ func TestApp_UpdateGroupEpic(t *testing.T) {
 			name:    "invalid epic IID (negative)",
 			epicIID: -1,
 			opts:    &UpdateEpicOptions{Title: "Test"},
-			setup:   func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {},
+			setup: func(client *MockGitLabClient, groups *MockGroupsService, epics *MockEpicsService, groupLabels *MockGroupLabelsService) {
+			},
 			want:    nil,
 			wantErr: true,
 			errType: ErrEpicIIDRequired,
@@ -2623,7 +2625,7 @@ func TestApp_UpdateGroupEpic_LabelValidation(t *testing.T) {
 
 				listOpts := &gitlab.ListGroupLabelsOptions{
 					ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					IncludeAncestorGroups: new(true),
 				}
 				groupLabels.On("ListGroupLabels", int64(456), listOpts).Return(
 					[]*gitlab.GroupLabel{
@@ -2678,7 +2680,7 @@ func TestApp_UpdateGroupEpic_LabelValidation(t *testing.T) {
 
 				listOpts := &gitlab.ListGroupLabelsOptions{
 					ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
-					IncludeAncestorGroups: gitlab.Ptr(true),
+					IncludeAncestorGroups: new(true),
 				}
 				groupLabels.On("ListGroupLabels", int64(456), listOpts).Return(
 					[]*gitlab.GroupLabel{
@@ -3487,7 +3489,7 @@ func TestApp_ListPipelineJobs(t *testing.T) {
 							Ref:       "develop",
 							WebURL:    "https://gitlab.com/test/project/-/jobs/3001",
 							CreatedAt: &testTime,
-							Runner: gitlab.JobRunner{ID: 0},
+							Runner:    gitlab.JobRunner{ID: 0},
 						},
 					},
 					&gitlab.Response{}, nil,
@@ -4354,20 +4356,24 @@ func TestApp_DownloadJobTrace(t *testing.T) {
 		{
 			name: "nil options - error",
 			opts: nil,
-			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
-			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				return ""
+			},
+			verify:  func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
 			wantErr: true,
-			errMsg: "options cannot be nil",
+			errMsg:  "options cannot be nil",
 		},
 		{
 			name: "zero job_id - error",
 			opts: &DownloadJobTraceOptions{
 				JobID: 0,
 			},
-			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
-			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				return ""
+			},
+			verify:  func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
 			wantErr: true,
-			errMsg: "job_id must be positive",
+			errMsg:  "job_id must be positive",
 		},
 		{
 			name: "path traversal attempt - error",
@@ -4375,10 +4381,12 @@ func TestApp_DownloadJobTrace(t *testing.T) {
 				JobID:      7007,
 				OutputPath: "../../etc/passwd",
 			},
-			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
-			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				return ""
+			},
+			verify:  func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
 			wantErr: true,
-			errMsg: "path traversal attempt detected",
+			errMsg:  "path traversal attempt detected",
 		},
 		{
 			name: "system directory - error",
@@ -4386,10 +4394,12 @@ func TestApp_DownloadJobTrace(t *testing.T) {
 				JobID:      8008,
 				OutputPath: "/etc/test.log",
 			},
-			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string { return "" },
-			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, jobs *MockJobsService, pipelines *MockPipelinesService, t *testing.T) string {
+				return ""
+			},
+			verify:  func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
 			wantErr: true,
-			errMsg: "invalid output path",
+			errMsg:  "invalid output path",
 		},
 		{
 			name: "job not found in pipeline - error",
@@ -4421,9 +4431,9 @@ func TestApp_DownloadJobTrace(t *testing.T) {
 
 				return customPath
 			},
-			verify: func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
+			verify:  func(result *DownloadJobTraceResult, tempDir string, t *testing.T) {},
 			wantErr: true,
-			errMsg: "job not found in pipeline",
+			errMsg:  "job not found in pipeline",
 		},
 	}
 
