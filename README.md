@@ -52,6 +52,15 @@ export GITLAB_URI=https://your.gitlab.instance
 
 ### Add to Claude Code
 
+Register the server once for all your projects (`-s user`):
+
+```bash
+claude mcp add gitlab-mcp -s user -- gitlab-mcp
+```
+
+This assumes `gitlab-mcp` is in your `PATH` (the case after a Homebrew install). If Claude Code
+cannot find the binary, pass the absolute path instead:
+
 ```bash
 # Apple Silicon Mac
 claude mcp add gitlab-mcp -s user -- /opt/homebrew/bin/gitlab-mcp
@@ -59,6 +68,25 @@ claude mcp add gitlab-mcp -s user -- /opt/homebrew/bin/gitlab-mcp
 # Intel Mac / Linux
 claude mcp add gitlab-mcp -s user -- /usr/local/bin/gitlab-mcp
 ```
+
+Pass the token explicitly with `-e` if it isn't exported in the environment Claude Code inherits:
+
+```bash
+claude mcp add gitlab-mcp -s user \
+  -e GITLAB_TOKEN=your_personal_access_token \
+  -e GITLAB_URI=https://your.gitlab.instance \
+  -- gitlab-mcp
+```
+
+Verify the server is connected:
+
+```bash
+claude mcp list
+```
+
+Other scopes: `-s local` (current project only, default) or `-s project` (shared via the project's
+`.mcp.json`). See the [setup guide](docs/SETUP.md#adding-to-claude-code) for Docker-based
+registration and manual `mcp.json` configuration.
 
 ### CLI Flags (Optional)
 
@@ -70,6 +98,12 @@ gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
 
 # Example: Issue management only
 gitlab-mcp --no-project-metadata --no-epics --no-pipelines
+```
+
+Append the flags after the `--` separator when registering the server:
+
+```bash
+claude mcp add gitlab-mcp -s user -- gitlab-mcp --no-epics --no-pipelines
 ```
 
 Available flags: `--no-issues`, `--no-labels`, `--no-project-metadata`, `--no-epics`, `--no-pipelines`, `--no-merge-requests`, `--no-projects`

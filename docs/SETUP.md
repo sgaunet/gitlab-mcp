@@ -379,6 +379,9 @@ After installation and configuration, register the MCP server with Claude Code.
 ### Command-Line Registration
 
 ```bash
+# Binary available in PATH (typical after a Homebrew install)
+claude mcp add gitlab-mcp -s user -- gitlab-mcp
+
 # Apple Silicon Mac (Homebrew)
 claude mcp add gitlab-mcp -s user -- /opt/homebrew/bin/gitlab-mcp
 
