@@ -255,6 +255,17 @@ func (g *GroupsServiceWrapper) GetGroup(
 	return group, resp, nil
 }
 
+func (g *GroupsServiceWrapper) ListGroupProjects(
+	gid any,
+	opt *gitlab.ListGroupProjectsOptions,
+) ([]*gitlab.Project, *gitlab.Response, error) {
+	projects, resp, err := g.service.ListGroupProjects(gid, opt)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gitlab client: %w", err)
+	}
+	return projects, resp, nil
+}
+
 // GroupLabelsServiceWrapper wraps the real GroupLabels service.
 type GroupLabelsServiceWrapper struct {
 	service gitlab.GroupLabelsServiceInterface

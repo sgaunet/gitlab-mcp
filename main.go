@@ -35,6 +35,7 @@ type ToolCategoryFlags struct {
 	Epics           bool // Epic management tools (Premium/Ultimate tier)
 	Pipelines       bool // CI/CD pipeline tools
 	MergeRequests   bool // Merge request management tools
+	Projects        bool // Group project discovery tools
 }
 
 // Error variables for static errors.
@@ -1475,8 +1476,8 @@ func setupUpdateProjectTopicsTool(s *server.MCPServer, appInstance *app.App, deb
 	})
 }
 
-func printHelp() {
-	fmt.Printf(`GitLab MCP Server %s
+// helpText is the usage message printed by -h/--help. %s is replaced by the version.
+const helpText = `GitLab MCP Server %s
 
 A Model Context Protocol (MCP) server that provides GitLab integration tools for Claude Code.
 
@@ -1494,6 +1495,8 @@ OPTIONS:
                            Disable project metadata tools
       --no-epics           Disable epic management tools
       --no-pipelines       Disable CI/CD pipeline tools
+      --no-merge-requests  Disable merge request management tools
+      --no-projects        Disable group project discovery tools
 
 ENVIRONMENT VARIABLES:
     GITLAB_TOKEN   GitLab API personal access token (required)
@@ -1514,6 +1517,7 @@ DESCRIPTION:
     • get_project_topics       - Get the topics/tags of a project
     • update_project_topics    - Update the project topics (replaces all)
     • list_epics               - List epics for a GitLab group (Premium/Ultimate)
+    • list_group_projects      - List all projects of a group, subgroups included
 
     The server communicates via JSON-RPC 2.0 over stdin/stdout and is designed
     to be used with Claude Code's MCP architecture.
@@ -1535,7 +1539,10 @@ EXAMPLES:
     gitlab-mcp -v
 
 For more information, visit: https://github.com/sgaunet/gitlab-mcp
-`, version)
+`
+
+func printHelp() {
+	fmt.Printf(helpText, version)
 }
 
 // handleCommandLineFlags processes command line arguments and exits if necessary.
@@ -1553,6 +1560,7 @@ func handleCommandLineFlags() *ToolCategoryFlags {
 		noEpics           = flag.Bool("no-epics", false, "Disable epic management tools")
 		noPipelines       = flag.Bool("no-pipelines", false, "Disable CI/CD pipeline tools")
 		noMergeRequests   = flag.Bool("no-merge-requests", false, "Disable merge request management tools")
+		noProjects        = flag.Bool("no-projects", false, "Disable group project discovery tools")
 	)
 
 	flag.Parse()
@@ -1577,6 +1585,7 @@ func handleCommandLineFlags() *ToolCategoryFlags {
 		Epics:           !*noEpics,
 		Pipelines:       !*noPipelines,
 		MergeRequests:   !*noMergeRequests,
+		Projects:        !*noProjects,
 	}
 }
 
@@ -1854,6 +1863,12 @@ func logEnabledCategories(debugLogger *slog.Logger, flags *ToolCategoryFlags) {
 		disabled = append(disabled, "merge-requests")
 	}
 
+	if flags.Projects {
+		enabled = append(enabled, "projects")
+	} else {
+		disabled = append(disabled, "projects")
+	}
+
 	debugLogger.Info("Tool categories configuration",
 		"enabled", strings.Join(enabled, ", "),
 		"disabled", strings.Join(disabled, ", "),
@@ -1914,6 +1929,11 @@ func registerAllTools(s *server.MCPServer, appInstance *app.App, debugLogger *sl
 		setupGetMergeRequestDiffTool(s, appInstance, debugLogger)
 		setupApproveMergeRequestTool(s, appInstance, debugLogger)
 		setupAddMergeRequestNoteTool(s, appInstance, debugLogger)
+	}
+
+	// Projects category (1 tool)
+	if flags.Projects {
+		setupListGroupProjectsTool(s, appInstance, debugLogger)
 	}
 }
 

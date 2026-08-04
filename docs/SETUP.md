@@ -269,6 +269,8 @@ All tools are enabled by default. Use these flags to opt-out of specific categor
 - `--no-project-metadata` - Disable project metadata tools (4 tools)
 - `--no-epics` - Disable epic management tools (3 tools)
 - `--no-pipelines` - Disable CI/CD pipeline tools (4 tools)
+- `--no-merge-requests` - Disable merge request management tools (8 tools)
+- `--no-projects` - Disable group project discovery tools (1 tool)
 
 ### Token Savings
 

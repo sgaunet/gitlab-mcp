@@ -14,6 +14,7 @@ Complete reference for all GitLab MCP tools available in Claude Code.
 - [Label Management](#label-management)
   - [list_labels](#list_labels)
 - [Project Management](#project-management)
+  - [list_group_projects](#list_group_projects)
   - [get_project_description](#get_project_description)
   - [update_project_description](#update_project_description)
   - [get_project_topics](#get_project_topics)
@@ -365,6 +366,83 @@ Returns a JSON array of label objects:
 ---
 
 ## Project Management
+
+### list_group_projects
+
+Lists all projects of a GitLab group, recursively including every subgroup at any depth. Useful for
+discovering which projects exist before using the other tools — the returned `path` can be passed
+directly as `project_path` to any of them.
+
+Recursion is performed by GitLab itself (`include_subgroups`), so nested groups of any depth are
+covered by a single call. Results spanning several API pages are fetched automatically.
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `group_path` | string | Yes | - | GitLab group path including all parent namespaces (e.g. `mygroup` or `company/department/team`) |
+| `include_subgroups` | boolean | No | `true` | Recurse into all descendant subgroups. Set to `false` to list only projects directly owned by the group |
+| `include_archived` | boolean | No | `false` | Include archived projects |
+| `search` | string | No | - | Filter projects by name or path substring |
+| `topic` | string | No | - | Filter projects by topic/tag |
+| `limit` | number | No | `100` | Maximum number of projects to return (max: 1000) |
+
+#### Examples
+
+```
+List all projects of the myorg group
+```
+
+```
+List all projects in myorg/platform including subgroups
+```
+
+```
+List only the projects directly owned by myorg, without subgroups
+```
+
+```
+List all projects of myorg tagged with the golang topic
+```
+
+```
+List up to 500 projects of myorg, including archived ones
+```
+
+#### Response Format
+
+```json
+[
+  {
+    "id": 12345,
+    "name": "payment-service",
+    "path": "myorg/backend/payment-service",
+    "description": "Payment gateway integration",
+    "topics": ["golang", "api", "payments"],
+    "web_url": "https://gitlab.com/myorg/backend/payment-service",
+    "archived": false
+  },
+  {
+    "id": 12346,
+    "name": "web-frontend",
+    "path": "myorg/frontend/web-frontend",
+    "description": "Customer-facing web application",
+    "topics": ["typescript", "react"],
+    "web_url": "https://gitlab.com/myorg/frontend/web-frontend",
+    "archived": false
+  }
+]
+```
+
+#### Notes
+
+- `path` is the full namespaced path (`path_with_namespace`), which is exactly what every other tool
+  in this server expects as `project_path`.
+- The group path must be a **group**, not a user namespace. Personal namespaces return `404 Not Found`
+  because GitLab exposes no group projects endpoint for them.
+- Requires at least the `read_api` token scope; only projects visible to the token are returned.
+
+---
 
 ### get_project_description
 

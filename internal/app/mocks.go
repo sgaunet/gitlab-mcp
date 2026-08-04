@@ -271,6 +271,16 @@ func (m *MockGroupsService) GetGroup(
 	return group, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
 }
 
+func (m *MockGroupsService) ListGroupProjects(
+	gid any,
+	opt *gitlab.ListGroupProjectsOptions,
+) ([]*gitlab.Project, *gitlab.Response, error) {
+	args := m.Called(gid, opt)
+	projects, _ := args.Get(0).([]*gitlab.Project)
+	response, _ := args.Get(1).(*gitlab.Response)
+	return projects, response, args.Error(errorArgIndex) //nolint:wrapcheck // Mock should pass through errors
+}
+
 // MockEpicsService is a mock implementation of EpicsService.
 type MockEpicsService struct {
 	mock.Mock

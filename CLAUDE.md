@@ -11,6 +11,7 @@ This is a Model Context Protocol (MCP) server that provides GitLab integration t
 - `update_issues`: Updates existing issues (title, description, state, labels (validated), assignees)
 - `list_labels`: Lists project labels with optional filtering and counts
 - `add_issue_note`: Adds notes/comments to existing issues
+- `list_group_projects`: Lists all projects of a GitLab group recursively (all subgroups included) with id, name, namespaced path, description and topics
 - `get_project_description`: Gets the current description of a GitLab project
 - `update_project_description`: Updates the description of a GitLab project
 - `get_project_topics`: Gets the current topics/tags of a GitLab project
@@ -104,6 +105,27 @@ When group issues are included, issues that belong to the current project are de
 **Graceful fallback:**
 
 If fetching group issues fails (due to permissions or other errors), the tool automatically falls back to returning only project issues, ensuring the request always succeeds when project access is available.
+
+**Discovering projects in a group:**
+
+The `list_group_projects` tool enumerates every project under a group, recursing through all
+subgroups server-side via GitLab's `include_subgroups` parameter. The returned `path` is the full
+namespaced path, so it can be fed directly to any other tool as `project_path`.
+
+```
+List all projects of the myorg group
+```
+
+```
+List only the projects directly owned by myorg (include_subgroups=false)
+```
+
+```
+List projects of myorg tagged with topic "golang"
+```
+
+Results are auto-paginated: `limit` defaults to 100 and is capped at 1000, with the server fetching
+as many API pages as needed. Archived projects are excluded unless `include_archived=true`.
 
 **Managing project descriptions:**
 ```
@@ -242,6 +264,7 @@ The server supports CLI flags to disable tool categories, reducing token consump
 - `--no-epics` - Disable epic management tools (3 tools)
 - `--no-pipelines` - Disable CI/CD pipeline tools (4 tools)
 - `--no-merge-requests` - Disable merge request management tools (8 tools)
+- `--no-projects` - Disable group project discovery tools (1 tool)
 
 ### Usage Examples
 
@@ -419,6 +442,7 @@ The server uses the official GitLab Go client to interact with GitLab's REST API
 - **Issue Updates**: `/projects/:id/issues/:issue_iid` endpoint for updating existing issues
 - **Notes Creation**: `/projects/:id/issues/:issue_iid/notes` endpoint for adding notes/comments to issues
 - **Labels List**: `/projects/:id/labels` endpoint for label retrieval
+- **Group Projects List**: `/groups/:id/projects?include_subgroups=true` endpoint for recursive project discovery (auto-paginated)
 - **Filtering**: Supports state filtering, label filtering, search, and pagination
 - **Deduplication**: Group issues are filtered to exclude duplicates from the current project
 - **Merge Requests List**: `/projects/:id/merge_requests` endpoint for MR retrieval
@@ -449,6 +473,7 @@ Unit tests provide comprehensive coverage of all functionality:
 - `UpdateProjectIssue`: Issue updates with partial/full updates, state changes, and validation
 - `AddIssueNote`: Note creation with body validation, project resolution, and API error handling
 - `ListProjectLabels`: Label retrieval with optional filtering, search, and counts
+- `ListGroupProjects`: Recursive group project discovery with multi-page pagination, limit clamping, subgroup/archived/search/topic filters, and nil-response safety
 - `GetLatestPipeline`: Pipeline retrieval with ref filtering and error scenarios
 - `ListPipelineJobs`: Job listing with pipeline ID resolution, status/stage filtering, and comprehensive error handling
 - `ListProjectMergeRequests`: MR retrieval with state filtering, label/author/search filters, and error scenarios
@@ -461,7 +486,7 @@ Unit tests provide comprehensive coverage of all functionality:
 - `AddMergeRequestNote`: MR note creation with body validation and error handling
 - Edge cases: nil parameters, empty values, API errors, project not found, invalid IIDs
 
-All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **83.1%**.
+All tests run without external dependencies using mocked GitLab client interfaces. Current test coverage is **83.6%**.
 
 ### Group Issues Integration
 
