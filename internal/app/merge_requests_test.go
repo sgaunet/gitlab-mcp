@@ -39,7 +39,7 @@ func TestApp_ListProjectMergeRequests(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListProjectMergeRequestsOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -99,10 +99,10 @@ func TestApp_ListProjectMergeRequests(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"bug"})
 				expectedOpts := &gitlab.ListProjectMergeRequestsOptions{
-					State:          gitlab.Ptr("merged"),
+					State:          new("merged"),
 					Labels:         &expectedLabels,
-					AuthorUsername: gitlab.Ptr("dev1"),
-					Search:         gitlab.Ptr("fix"),
+					AuthorUsername: new("dev1"),
+					Search:         new("fix"),
 					ListOptions:    gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 
@@ -157,7 +157,7 @@ func TestApp_ListProjectMergeRequests(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListProjectMergeRequestsOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -222,9 +222,9 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.CreateMergeRequestOptions{
-					Title:        gitlab.Ptr("New MR"),
-					SourceBranch: gitlab.Ptr("feature"),
-					TargetBranch: gitlab.Ptr("main"),
+					Title:        new("New MR"),
+					SourceBranch: new("feature"),
+					TargetBranch: new("main"),
 				}
 
 				mrs.On("CreateMergeRequest", int64(123), expectedOpts).Return(
@@ -277,10 +277,10 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"bug", "urgent"})
 				expectedOpts := &gitlab.CreateMergeRequestOptions{
-					Title:        gitlab.Ptr("Full MR"),
-					SourceBranch: gitlab.Ptr("feature"),
-					TargetBranch: gitlab.Ptr("main"),
-					Description:  gitlab.Ptr("Full description"),
+					Title:        new("Full MR"),
+					SourceBranch: new("feature"),
+					TargetBranch: new("main"),
+					Description:  new("Full description"),
 					Labels:       &expectedLabels,
 					AssigneeIDs:  &[]int64{1, 2},
 					ReviewerIDs:  &[]int64{3},
@@ -370,9 +370,9 @@ func TestApp_CreateProjectMergeRequest(t *testing.T) {
 				)
 
 				mrs.On("CreateMergeRequest", int64(123), &gitlab.CreateMergeRequestOptions{
-					Title:        gitlab.Ptr("MR"),
-					SourceBranch: gitlab.Ptr("feature"),
-					TargetBranch: gitlab.Ptr("main"),
+					Title:        new("MR"),
+					SourceBranch: new("feature"),
+					TargetBranch: new("main"),
 				}).Return(
 					(*gitlab.MergeRequest)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
@@ -547,7 +547,7 @@ func TestApp_UpdateMergeRequest(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.UpdateMergeRequestOptions{
-					Title: gitlab.Ptr("Updated Title"),
+					Title: new("Updated Title"),
 				}
 
 				mrs.On("UpdateMergeRequest", int64(123), int(10), expectedOpts).Return(
@@ -598,9 +598,9 @@ func TestApp_UpdateMergeRequest(t *testing.T) {
 
 				expectedLabels := gitlab.LabelOptions([]string{"label1"})
 				expectedOpts := &gitlab.UpdateMergeRequestOptions{
-					Title:       gitlab.Ptr("New Title"),
-					Description: gitlab.Ptr("New desc"),
-					StateEvent:  gitlab.Ptr("closed"),
+					Title:       new("New Title"),
+					Description: new("New desc"),
+					StateEvent:  new("closed"),
 					Labels:      &expectedLabels,
 					AssigneeIDs: &[]int64{1},
 					ReviewerIDs: &[]int64{2},
@@ -609,11 +609,11 @@ func TestApp_UpdateMergeRequest(t *testing.T) {
 				mrs.On("UpdateMergeRequest", int64(123), int(10), expectedOpts).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
-							ID:    1,
-							IID:   10,
-							Title: "New Title",
-							State: "closed",
-							Labels: gitlab.Labels{"label1"},
+							ID:        1,
+							IID:       10,
+							Title:     "New Title",
+							State:     "closed",
+							Labels:    gitlab.Labels{"label1"},
 							CreatedAt: &testTime,
 							UpdatedAt: &testTime,
 						},
@@ -670,7 +670,7 @@ func TestApp_UpdateMergeRequest(t *testing.T) {
 				)
 
 				mrs.On("UpdateMergeRequest", int64(123), int(10), &gitlab.UpdateMergeRequestOptions{
-					Title: gitlab.Ptr("T"),
+					Title: new("T"),
 				}).Return(
 					(*gitlab.MergeRequest)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)
@@ -731,10 +731,10 @@ func TestApp_MergeMergeRequest(t *testing.T) {
 				mrs.On("AcceptMergeRequest", int64(123), int(10), &gitlab.AcceptMergeRequestOptions{}).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
-							ID:    1,
-							IID:   10,
-							Title: "Merged MR",
-							State: "merged",
+							ID:        1,
+							IID:       10,
+							Title:     "Merged MR",
+							State:     "merged",
 							CreatedAt: &testTime,
 							UpdatedAt: &testTime,
 						},
@@ -769,17 +769,17 @@ func TestApp_MergeMergeRequest(t *testing.T) {
 				)
 
 				mrs.On("AcceptMergeRequest", int64(123), int(10), &gitlab.AcceptMergeRequestOptions{
-					MergeCommitMessage:       gitlab.Ptr("Merge commit"),
-					SquashCommitMessage:      gitlab.Ptr("Squash commit"),
-					Squash:                   gitlab.Ptr(true),
-					ShouldRemoveSourceBranch: gitlab.Ptr(true),
+					MergeCommitMessage:       new("Merge commit"),
+					SquashCommitMessage:      new("Squash commit"),
+					Squash:                   new(true),
+					ShouldRemoveSourceBranch: new(true),
 				}).Return(
 					&gitlab.MergeRequest{
 						BasicMergeRequest: gitlab.BasicMergeRequest{
-							ID:    1,
-							IID:   10,
-							Title: "Merged MR",
-							State: "merged",
+							ID:        1,
+							IID:       10,
+							Title:     "Merged MR",
+							State:     "merged",
 							CreatedAt: &testTime,
 							UpdatedAt: &testTime,
 						},
@@ -1029,7 +1029,7 @@ func TestApp_ApproveMergeRequest(t *testing.T) {
 				)
 
 				approvals.On("ApproveMergeRequest", int64(123), int64(10), &gitlab.ApproveMergeRequestOptions{
-					SHA: gitlab.Ptr("abc123"),
+					SHA: new("abc123"),
 				}).Return(
 					&gitlab.MergeRequestApprovals{
 						ApprovedBy:        []*gitlab.MergeRequestApproverUser{{User: &gitlab.BasicUser{ID: 1}}, {User: &gitlab.BasicUser{ID: 2}}},
@@ -1041,10 +1041,11 @@ func TestApp_ApproveMergeRequest(t *testing.T) {
 			want: "Merge request 10 approved successfully. Approvals: 2/2",
 		},
 		{
-			name:    "invalid IID",
-			mrIID:   0,
-			opts:    nil,
-			setup:   func(client *MockGitLabClient, projects *MockProjectsService, approvals *MockMergeRequestApprovalsService) {},
+			name:  "invalid IID",
+			mrIID: 0,
+			opts:  nil,
+			setup: func(client *MockGitLabClient, projects *MockProjectsService, approvals *MockMergeRequestApprovalsService) {
+			},
 			wantErr: true,
 		},
 		{
@@ -1129,18 +1130,18 @@ func TestApp_AddMergeRequestNote(t *testing.T) {
 				)
 
 				notes.On("CreateMergeRequestNote", int64(123), int64(10), &gitlab.CreateMergeRequestNoteOptions{
-					Body: gitlab.Ptr("LGTM!"),
+					Body: new("LGTM!"),
 				}).Return(
 					&gitlab.Note{
-						ID:          1,
-						Body:        "LGTM!",
-						System:      false,
-						Author:      gitlab.NoteAuthor{ID: 5, Username: "reviewer", Name: "Reviewer"},
-						NoteableID:  10,
-						NoteableIID: 10,
+						ID:           1,
+						Body:         "LGTM!",
+						System:       false,
+						Author:       gitlab.NoteAuthor{ID: 5, Username: "reviewer", Name: "Reviewer"},
+						NoteableID:   10,
+						NoteableIID:  10,
 						NoteableType: "MergeRequest",
-						CreatedAt:   &testTime,
-						UpdatedAt:   &testTime,
+						CreatedAt:    &testTime,
+						UpdatedAt:    &testTime,
 					},
 					&gitlab.Response{}, nil,
 				)
@@ -1208,7 +1209,7 @@ func TestApp_AddMergeRequestNote(t *testing.T) {
 				)
 
 				notes.On("CreateMergeRequestNote", int64(123), int64(10), &gitlab.CreateMergeRequestNoteOptions{
-					Body: gitlab.Ptr("test"),
+					Body: new("test"),
 				}).Return(
 					(*gitlab.Note)(nil), (*gitlab.Response)(nil), errors.New("API error"),
 				)

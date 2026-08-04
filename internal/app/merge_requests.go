@@ -32,17 +32,17 @@ func buildListMergeRequestsOptions(opts *ListMergeRequestsOptions) *gitlab.ListP
 	}
 
 	if opts.State != "" {
-		listOpts.State = gitlab.Ptr(opts.State)
+		listOpts.State = new(opts.State)
 	}
 	if len(opts.Labels) > 0 {
 		labels := gitlab.LabelOptions(opts.Labels)
 		listOpts.Labels = &labels
 	}
 	if opts.Author != "" {
-		listOpts.AuthorUsername = gitlab.Ptr(opts.Author)
+		listOpts.AuthorUsername = new(opts.Author)
 	}
 	if opts.Search != "" {
-		listOpts.Search = gitlab.Ptr(opts.Search)
+		listOpts.Search = new(opts.Search)
 	}
 	if opts.Limit > 0 {
 		listOpts.PerPage = min(opts.Limit, maxMergeRequestsPerPage)
@@ -60,19 +60,19 @@ func buildAcceptMergeRequestOptions(opts *MergeMergeRequestOptions) *gitlab.Acce
 	}
 
 	if opts.MergeCommitMessage != "" {
-		acceptOpts.MergeCommitMessage = gitlab.Ptr(opts.MergeCommitMessage)
+		acceptOpts.MergeCommitMessage = new(opts.MergeCommitMessage)
 	}
 	if opts.SquashCommitMessage != "" {
-		acceptOpts.SquashCommitMessage = gitlab.Ptr(opts.SquashCommitMessage)
+		acceptOpts.SquashCommitMessage = new(opts.SquashCommitMessage)
 	}
 	if opts.Squash {
-		acceptOpts.Squash = gitlab.Ptr(opts.Squash)
+		acceptOpts.Squash = new(opts.Squash)
 	}
 	if opts.ShouldRemoveSourceBranch {
-		acceptOpts.ShouldRemoveSourceBranch = gitlab.Ptr(opts.ShouldRemoveSourceBranch)
+		acceptOpts.ShouldRemoveSourceBranch = new(opts.ShouldRemoveSourceBranch)
 	}
 	if opts.MergeWhenPipelineSucceeds {
-		acceptOpts.AutoMerge = gitlab.Ptr(opts.MergeWhenPipelineSucceeds)
+		acceptOpts.AutoMerge = new(opts.MergeWhenPipelineSucceeds)
 	}
 
 	return acceptOpts
@@ -81,13 +81,13 @@ func buildAcceptMergeRequestOptions(opts *MergeMergeRequestOptions) *gitlab.Acce
 // buildCreateMergeRequestOptions converts our options to GitLab API options.
 func buildCreateMergeRequestOptions(opts *CreateMergeRequestOptions) *gitlab.CreateMergeRequestOptions {
 	createOpts := &gitlab.CreateMergeRequestOptions{
-		Title:        gitlab.Ptr(opts.Title),
-		SourceBranch: gitlab.Ptr(opts.SourceBranch),
-		TargetBranch: gitlab.Ptr(opts.TargetBranch),
+		Title:        new(opts.Title),
+		SourceBranch: new(opts.SourceBranch),
+		TargetBranch: new(opts.TargetBranch),
 	}
 
 	if opts.Description != "" {
-		createOpts.Description = gitlab.Ptr(opts.Description)
+		createOpts.Description = new(opts.Description)
 	}
 	if len(opts.Labels) > 0 {
 		labels := gitlab.LabelOptions(opts.Labels)
@@ -108,13 +108,13 @@ func buildUpdateMergeRequestOptions(opts *UpdateMergeRequestOptions) *gitlab.Upd
 	updateOpts := &gitlab.UpdateMergeRequestOptions{}
 
 	if opts.Title != "" {
-		updateOpts.Title = gitlab.Ptr(opts.Title)
+		updateOpts.Title = new(opts.Title)
 	}
 	if opts.Description != "" {
-		updateOpts.Description = gitlab.Ptr(opts.Description)
+		updateOpts.Description = new(opts.Description)
 	}
 	if opts.State != "" {
-		updateOpts.StateEvent = gitlab.Ptr(opts.State)
+		updateOpts.StateEvent = new(opts.State)
 	}
 	if opts.Labels != nil {
 		labels := gitlab.LabelOptions(opts.Labels)
@@ -382,7 +382,7 @@ func (a *App) ApproveMergeRequest(
 	// Build GitLab API options
 	approveOpts := &gitlab.ApproveMergeRequestOptions{}
 	if opts != nil && opts.SHA != "" {
-		approveOpts.SHA = gitlab.Ptr(opts.SHA)
+		approveOpts.SHA = new(opts.SHA)
 	}
 
 	// Call GitLab API
@@ -418,7 +418,7 @@ func (a *App) AddMergeRequestNote(
 	return a.addNoteCommon(projectPath, mrIID, opts.Body, "merge request",
 		func(projectID int64, iid int64, body string) (*gitlab.Note, error) {
 			createOpts := &gitlab.CreateMergeRequestNoteOptions{
-				Body: gitlab.Ptr(body),
+				Body: new(body),
 			}
 			note, _, err := a.client.Notes().CreateMergeRequestNote(projectID, iid, createOpts)
 			if err != nil {

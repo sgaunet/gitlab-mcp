@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 // TestConvertGitLabEpicIssueAssignment tests the convertGitLabEpicIssueAssignment function.
@@ -308,7 +308,7 @@ func TestApp_ListGroupEpics(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListGroupEpicsOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -362,7 +362,7 @@ func TestApp_ListGroupEpics(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListGroupEpicsOptions{
-					State:       gitlab.Ptr("closed"),
+					State:       new("closed"),
 					ListOptions: gitlab.ListOptions{PerPage: 50, Page: 1},
 				}
 
@@ -407,7 +407,7 @@ func TestApp_ListGroupEpics(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListGroupEpicsOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -444,7 +444,7 @@ func TestApp_ListGroupEpics(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListGroupEpicsOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -468,7 +468,7 @@ func TestApp_ListGroupEpics(t *testing.T) {
 				)
 
 				expectedOpts := &gitlab.ListGroupEpicsOptions{
-					State:       gitlab.Ptr("opened"),
+					State:       new("opened"),
 					ListOptions: gitlab.ListOptions{PerPage: 100, Page: 1},
 				}
 
@@ -591,9 +591,10 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "nil options",
-			opts:    nil,
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			name: "nil options",
+			opts: nil,
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrCreateOptionsRequired,
 		},
@@ -605,7 +606,8 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 				ProjectPath: "test/project",
 				IssueIID:    10,
 			},
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrGroupPathRequired,
 		},
@@ -617,7 +619,8 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 				ProjectPath: "test/project",
 				IssueIID:    10,
 			},
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrEpicIIDRequired,
 		},
@@ -629,7 +632,8 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 				ProjectPath: "test/project",
 				IssueIID:    10,
 			},
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrEpicIIDRequired,
 		},
@@ -641,7 +645,8 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 				ProjectPath: "",
 				IssueIID:    10,
 			},
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrProjectPathRequired,
 		},
@@ -653,7 +658,8 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 				ProjectPath: "test/project",
 				IssueIID:    0,
 			},
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrInvalidIssueIID,
 		},
@@ -665,7 +671,8 @@ func TestApp_AddIssueToEpic(t *testing.T) {
 				ProjectPath: "test/project",
 				IssueIID:    -1,
 			},
-			setup:   func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {},
+			setup: func(*MockGitLabClient, *MockGroupsService, *MockProjectsService, *MockIssuesService, *MockEpicIssuesService) {
+			},
 			wantErr: true,
 			errType: ErrInvalidIssueIID,
 		},
