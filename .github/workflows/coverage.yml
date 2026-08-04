@@ -12,21 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # setup go environment
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - uses: jdx/mise-action@v4
         with:
-          go-version-file: 'go.mod'
-  
+          install: true
+          cache: true
+
       - name: coverage
         id: coverage
         run: |
           go mod download
           go test ./internal/... -coverpkg=./internal/... -coverprofile=profile.cov
-          #echo -n "Total Coverage{{":"}} "
           total=$(go tool cover -func profile.cov | grep '^total:' | awk '{print $3}' | sed 's/%//')
           rm -f profile.cov
-          echo "COVERAGE_VALUE=${total}" >> $GITHUB_ENV
+          echo "COVERAGE_VALUE=${total}" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
         with:
