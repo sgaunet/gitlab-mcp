@@ -15,6 +15,10 @@ type ProjectsService interface {
 // GroupsService interface for GitLab Groups operations.
 type GroupsService interface {
 	GetGroup(gid any, opt *gitlab.GetGroupOptions) (*gitlab.Group, *gitlab.Response, error)
+	ListGroupProjects(
+		gid any,
+		opt *gitlab.ListGroupProjectsOptions,
+	) ([]*gitlab.Project, *gitlab.Response, error)
 }
 
 // IssuesService interface for GitLab Issues operations.

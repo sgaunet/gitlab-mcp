@@ -17,6 +17,7 @@ A Model Context Protocol (MCP) server that provides GitLab integration tools for
 - **Issue Management**: List, create, update issues, and add comments
 - **Label Management**: List and manage project labels with filtering
 - **Project Management**: View and update project descriptions and topics
+- **Project Discovery**: List all projects of a group recursively, including every subgroup
 - **Epic Management**: List and create epics (Premium/Ultimate tier)
 - **CI/CD Integration**: Monitor pipelines, view job logs, and download traces
 - **Direct Project Access**: Use project paths (namespace/project-name) without ID resolution
@@ -72,7 +73,7 @@ gitlab-mcp --no-issues --no-labels --no-project-metadata --no-epics
 gitlab-mcp --no-project-metadata --no-epics --no-pipelines
 ```
 
-Available flags: `--no-issues`, `--no-labels`, `--no-project-metadata`, `--no-epics`, `--no-pipelines`
+Available flags: `--no-issues`, `--no-labels`, `--no-project-metadata`, `--no-epics`, `--no-pipelines`, `--no-merge-requests`, `--no-projects`
 
 [Complete CLI configuration →](docs/SETUP.md#cli-flags)
 
@@ -88,6 +89,10 @@ Create an issue with title "Bug fix needed" for project myorg/myproject
 
 ```
 Get the latest pipeline for myorg/myproject
+```
+
+```
+List all projects of the myorg group
 ```
 
 ## Documentation
@@ -108,6 +113,7 @@ Get the latest pipeline for myorg/myproject
 | `update_issues` | Update issue title, description, state, labels |
 | `add_issue_note` | Add comments to issues |
 | `list_labels` | List project labels with optional filtering |
+| `list_group_projects` | List all projects of a group, subgroups included |
 | `get_project_description` | Get project description |
 | `update_project_description` | Update project description |
 | `get_project_topics` | Get project topics/tags |
