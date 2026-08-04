@@ -1,5 +1,4 @@
 [![GitHub release](https://img.shields.io/github/release/sgaunet/gitlab-mcp.svg)](https://github.com/sgaunet/gitlab-mcp/releases/latest)
-[![Go Report Card](https://goreportcard.com/badge/github.com/sgaunet/gitlab-mcp)](https://goreportcard.com/report/github.com/sgaunet/gitlab-mcp)
 ![GitHub Downloads](https://img.shields.io/github/downloads/sgaunet/gitlab-mcp/total)
 ![Coverage](https://raw.githubusercontent.com/wiki/sgaunet/gitlab-mcp/coverage-badge.svg)
 [![coverage](https://github.com/sgaunet/gitlab-mcp/actions/workflows/coverage.yml/badge.svg)](https://github.com/sgaunet/gitlab-mcp/actions/workflows/coverage.yml)
