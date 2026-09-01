@@ -3,7 +3,7 @@ module github.com/sgaunet/gitlab-mcp
 go 1.26
 
 require (
-	github.com/mark3labs/mcp-go v0.57.0
+	github.com/mark3labs/mcp-go v0.58.0
 	github.com/stretchr/testify v1.11.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 )
