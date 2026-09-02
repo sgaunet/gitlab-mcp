@@ -6,3 +6,4 @@
 /.coverdata
 /.taskmaster
 .env
+/govulncheck.sarif
