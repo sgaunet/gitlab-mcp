@@ -33,10 +33,10 @@ builds:
 
 archives:
   - name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
   - id: binary
     name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     formats: ['binary']
@@ -138,21 +138,41 @@ changelog:
       - '^docs:'
       - '^test:'
 
-brews:
-  - ids: [default]  # Use the default archive (tar.gz/zip), not binary
+# Homebrew cask publishing (replaces the deprecated `brews:` block; casks are
+# what GoReleaser supports going forward)
+homebrew_casks:
+  - name: gitlab-mcp
     homepage: 'https://github.com/sgaunet/gitlab-mcp'
-    description: 'A Model Context Protocol (MCP) server that provides GitLab integration tools for Claude Code'
-    directory: Formula
+    description: 'Model Context Protocol server with GitLab integration tools for Claude Code'
+
+    # Tap repository directory (casks live in Casks/, not Formula/)
+    directory: Casks
+
+    # Use the default (tar.gz) archive, not the raw binary one.
+    ids: [default]
+
+    # Command name users invoke, mapped from the artifact name.
+    binaries:
+      - gitlab-mcp
+
+    # Download URL of the release artifact.
+    url:
+      template: 'https://github.com/sgaunet/gitlab-mcp/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
+
+    # Strip the Gatekeeper quarantine xattr so the installed binary can run.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}"]
+          end
+
     commit_author:
       name: sgaunet
       email: 1552102+sgaunet@users.noreply.github.com
+
     repository:
       owner: sgaunet
       name: homebrew-tools
       # Token with 'repo' scope is required for pushing to a different repository
       token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
-    url_template: 'https://github.com/sgaunet/gitlab-mcp/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
-    install: |
-      bin.install "gitlab-mcp"
-    test: |
-      system "#{bin}/gitlab-mcp", "-h"
