@@ -59,10 +59,8 @@ func normalizeListGroupProjectsOptions(opts *ListGroupProjectsOptions) ListGroup
 // buildListGroupProjectsOptions converts our options to GitLab API options.
 func buildListGroupProjectsOptions(opts ListGroupProjectsOptions) *gitlab.ListGroupProjectsOptions {
 	listOpts := &gitlab.ListGroupProjectsOptions{
-		ListOptions: gitlab.ListOptions{
-			PerPage: min(opts.Limit, maxProjectsPerPage),
-			Page:    1,
-		},
+		PerPage:          min(opts.Limit, maxProjectsPerPage),
+		Page:             1,
 		IncludeSubGroups: new(opts.IncludeSubgroups),
 		OrderBy:          new(projectsOrderBy),
 		Sort:             new(projectsSort),

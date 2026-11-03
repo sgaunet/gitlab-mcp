@@ -24,7 +24,8 @@ const (
 // buildListMergeRequestsOptions converts our options to GitLab API options.
 func buildListMergeRequestsOptions(opts *ListMergeRequestsOptions) *gitlab.ListProjectMergeRequestsOptions {
 	listOpts := &gitlab.ListProjectMergeRequestsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: maxMergeRequestsPerPage, Page: 1},
+		PerPage: maxMergeRequestsPerPage,
+		Page:    1,
 	}
 
 	if opts == nil {
