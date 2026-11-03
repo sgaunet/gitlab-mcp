@@ -670,8 +670,9 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 
 	// Create GitLab API options for project issues
 	listOpts := &gitlab.ListProjectIssuesOptions{
-		State:       &opts.State,
-		ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+		State:   &opts.State,
+		PerPage: opts.Limit,
+		Page:    1,
 	}
 
 	// Add labels filter if provided
@@ -714,8 +715,9 @@ func (a *App) ListProjectIssues(projectPath string, opts *ListIssuesOptions) ([]
 
 		// Create GitLab API options for group issues (same filters)
 		groupListOpts := &gitlab.ListGroupIssuesOptions{
-			State:       &opts.State,
-			ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+			State:   &opts.State,
+			PerPage: opts.Limit,
+			Page:    1,
 		}
 
 		// Add labels filter if provided
@@ -855,7 +857,8 @@ func buildListLabelsOptions(opts *ListLabelsOptions) *gitlab.ListLabelsOptions {
 	listOpts := &gitlab.ListLabelsOptions{
 		WithCounts:            &withCounts,
 		IncludeAncestorGroups: &includeAncestorGroups,
-		ListOptions:           gitlab.ListOptions{PerPage: limit, Page: 1},
+		PerPage:               limit,
+		Page:                  1,
 	}
 
 	if opts.Search != "" {
@@ -1161,8 +1164,9 @@ func (a *App) ListGroupEpics(groupPath string, opts *ListEpicsOptions) ([]Epic, 
 
 	// Create GitLab API options
 	listOpts := &gitlab.ListGroupEpicsOptions{
-		State:       &opts.State,
-		ListOptions: gitlab.ListOptions{PerPage: opts.Limit, Page: 1},
+		State:   &opts.State,
+		PerPage: opts.Limit,
+		Page:    1,
 	}
 
 	// Call GitLab API
@@ -1336,9 +1340,10 @@ func (a *App) GetLatestPipeline(projectPath string, opts *GetLatestPipelineOptio
 	orderBy := "updated_at"
 	sort := "desc"
 	listOpts := &gitlab.ListProjectPipelinesOptions{
-		OrderBy:     &orderBy,
-		Sort:        &sort,
-		ListOptions: gitlab.ListOptions{PerPage: 1, Page: 1},
+		OrderBy: &orderBy,
+		Sort:    &sort,
+		PerPage: 1,
+		Page:    1,
 	}
 
 	// Add ref filter if provided
@@ -1407,7 +1412,8 @@ func (a *App) ListPipelineJobs(projectPath string, opts *ListPipelineJobsOptions
 
 	// Step 3: Build GitLab API options
 	listOpts := &gitlab.ListJobsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: maxJobsPerPage, Page: 1},
+		PerPage: maxJobsPerPage,
+		Page:    1,
 	}
 
 	if opts != nil && len(opts.Scope) > 0 {
@@ -1526,7 +1532,8 @@ func (a *App) GetJobLog(projectPath string, opts *GetJobLogOptions) (*JobLog, er
 
 	// Step 4: List jobs to get metadata for the target job
 	listOpts := &gitlab.ListJobsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: maxJobsPerPage, Page: 1},
+		PerPage: maxJobsPerPage,
+		Page:    1,
 	}
 
 	jobs, _, err := a.client.Jobs().ListPipelineJobs(projectID, pipelineID, listOpts)
@@ -1654,10 +1661,8 @@ func (a *App) DownloadJobTrace(projectPath string, opts *DownloadJobTraceOptions
 
 	// Step 5: List all jobs for the pipeline
 	listJobOpts := &gitlab.ListJobsOptions{
-		ListOptions: gitlab.ListOptions{
-			PerPage: maxJobsPerPage,
-			Page:    1,
-		},
+		PerPage: maxJobsPerPage,
+		Page:    1,
 	}
 
 	jobs, _, err := a.client.Jobs().ListPipelineJobs(projectID, pipelineID, listJobOpts)
@@ -2190,7 +2195,8 @@ func (a *App) validateGroupLabels(groupID int64, groupPath string, requestedLabe
 
 	// Get existing group labels including parent groups (hierarchical)
 	listOpts := &gitlab.ListGroupLabelsOptions{
-		ListOptions:           gitlab.ListOptions{PerPage: maxLabelsPerPage, Page: 1},
+		PerPage:               maxLabelsPerPage,
+		Page:                  1,
 		IncludeAncestorGroups: new(true),
 	}
 
